@@ -1,0 +1,313 @@
+"""
+Soul Context Injector - 拦截逻辑
+
+四层拦截 + 执行认证管理
+"""
+
+import json
+import re
+import datetime
+from fnmatch import fnmatch
+from typing import Optional, Dict, Any
+from pathlib import Path
+
+from .constants import (
+    logger,
+    DANGEROUS_PATTERNS,
+    WRITE_PATTERNS,
+    WRITE_TOOLS,
+    PLANNING_FILES,
+    CONFIRM_KEYWORDS,
+    VIOLATIONS_LOG,
+    EXECUTION_AUTH_FILE,
+)
+from .state import (
+    get_active_skill,
+    set_active_skill,
+    is_skill_in_whitelist,
+)
+
+
+# ============ 违规日志 ============
+
+def log_violation(violation_type: str, tool_name: str, args: dict, task_id: str):
+    """记录违规操作到日志文件"""
+    try:
+        VIOLATIONS_LOG.parent.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.datetime.now().isoformat()
+        args_str = json.dumps(args, ensure_ascii=False)[:200]
+        entry = f"[{timestamp}] [{task_id}] [{violation_type}] {tool_name} | args={args_str}\n"
+        
+        with open(VIOLATIONS_LOG, "a", encoding="utf-8") as f:
+            f.write(entry)
+        
+        logger.warning(f"[SOUL] 违规操作已记录: [{violation_type}] {tool_name}")
+    except Exception as e:
+        logger.error(f"[SOUL] 记录违规失败: {e}")
+
+
+# ============ 文件检查 ============
+
+def is_planning_file(path: str) -> bool:
+    """检查是否为规划性文件"""
+    path_lower = path.lower()
+    for pattern in PLANNING_FILES:
+        if fnmatch(path_lower, pattern.lower()):
+            return True
+    return False
+
+
+# ============ 危险命令检测 ============
+
+def is_dangerous_command(command: str) -> bool:
+    """检查是否为破坏性命令（永久禁止）- v4.2 精确管道检测"""
+    command_lower = command.lower().strip()
+    
+    # 空命令不危险
+    if not command_lower:
+        return False
+    
+    # 1. 组合攻击检测：curl/wget + | bash/sh/sudo（最高优先级）
+    download_pipe_pattern = r'(curl|wget)\s+.*\|\s*(bash|sh|sudo|/bin/bash|/bin/sh)'
+    if re.search(download_pipe_pattern, command_lower):
+        return True
+    
+    # 2. 精确管道危险操作检测
+    pipe_dangerous_pattern = r'\|\s*(bash|sudo|/bin/bash|/bin/sh)\b'
+    if re.search(pipe_dangerous_pattern, command_lower):
+        return True
+    
+    # 特殊处理：| sh 需要更精确的检测
+    sh_pipe_pattern = r'\|\s*sh\s*$|\|\s*sh\s+'
+    if re.search(sh_pipe_pattern, command_lower):
+        return True
+    
+    # 3. 检查其他 DANGEROUS_PATTERNS（排除已处理的管道模式）
+    safe_prefixes = ['echo ', 'printf ', 'cat ', 'less ', 'head ', 'tail ']
+    is_safe_command = any(command_lower.startswith(p) for p in safe_prefixes)
+    
+    if not is_safe_command:
+        for pattern in DANGEROUS_PATTERNS:
+            pattern_lower = pattern.lower()
+            # 跳过已处理的管道模式
+            if pattern in ["| bash", "|  bash", "|sh", "| sh", "|sudo", "|/bin/bash", "|/bin/sh"]:
+                continue
+            if pattern_lower in command_lower:
+                return True
+    
+    return False
+
+
+# ============ 写入操作检测 ============
+
+def is_write_operation(tool_name: str, command: str, args: dict = None) -> bool:
+    """检查是否为增删改操作（需要执行认证）- 支持规划文件白名单"""
+    args = args or {}
+    
+    # write_file 和 patch - 检查是否为规划文件
+    if tool_name in WRITE_TOOLS:
+        path = args.get("path", "")
+        if is_planning_file(path):
+            logger.info(f"[SOUL] 规划文件写入豁免: {path}")
+            return False
+        return True
+    
+    # terminal 增删改命令 - 使用更精确的匹配
+    if tool_name == "terminal":
+        command_lower = command.lower().strip()
+        
+        # 使用单词边界匹配，避免误报
+        for pattern in WRITE_PATTERNS:
+            pattern_clean = pattern.strip()
+            # 匹配命令开头或分号/&&/||后的命令
+            regex = rf'(^|[;&|]\s*){re.escape(pattern_clean)}(\s|$)'
+            if re.search(regex, command_lower):
+                return True
+    
+    return False
+
+
+# ============ execution_plan 查找 ============
+
+def find_execution_plan() -> Optional[Path]:
+    """查找 execution_plan.md 文件"""
+    # 在当前工作目录查找
+    cwd = Path.cwd()
+    plan_path = cwd / "execution_plan.md"
+    if plan_path.exists():
+        return plan_path
+    
+    # 在 ~/.hermes/sessions/ 下查找最新的
+    sessions_dir = Path.home() / ".hermes" / "sessions"
+    if sessions_dir.exists():
+        plans = list(sessions_dir.glob("*/execution_plan.md"))
+        if plans:
+            # 返回最新的
+            return max(plans, key=lambda p: p.stat().st_mtime)
+    
+    return None
+
+
+# ============ 执行认证管理 ============
+
+def has_execution_auth(session_id: str) -> bool:
+    """检查是否有有效的执行认证
+    
+    优先使用 Hermes approval 系统，降级到本地文件检查
+    """
+    # 方案1: 使用 Hermes approval 系统（推荐）
+    try:
+        from tools.approval import get_current_session_key, is_approved
+        session_key = get_current_session_key()
+        if is_approved(session_key, "soul_execution_write"):
+            logger.debug(f"[SOUL] 执行认证有效 (Hermes approval): {session_key}")
+            return True
+    except Exception as e:
+        logger.debug(f"[SOUL] Hermes approval 检查失败，降级到本地: {e}")
+    
+    # 方案2: 降级到本地文件检查
+    if not EXECUTION_AUTH_FILE.exists():
+        return False
+    
+    try:
+        data = json.loads(EXECUTION_AUTH_FILE.read_text())
+        
+        # 检查会话
+        if data.get("session_id") != session_id:
+            return False
+        
+        # 检查过期
+        expires = datetime.datetime.fromisoformat(data["expires_at"])
+        if datetime.datetime.now() > expires:
+            return False
+        
+        # 检查 execution_plan.md 是否存在
+        plan_path = Path(data.get("execution_plan", ""))
+        if not plan_path.exists():
+            return False
+        
+        logger.debug(f"[SOUL] 执行认证有效 (本地文件): {session_id}")
+        return True
+    except Exception as e:
+        logger.warning(f"[SOUL] 执行认证检查失败: {e}")
+        return False
+
+
+def grant_execution_auth(session_id: str, plan_path: Path = None):
+    """授予执行认证
+    
+    同时更新 Hermes approval 系统和本地文件
+    """
+    success = False
+    
+    # 方案1: 使用 Hermes approval 系统
+    try:
+        from tools.approval import get_current_session_key, approve_session
+        session_key = get_current_session_key()
+        approve_session(session_key, "soul_execution_write")
+        logger.info(f"[SOUL] 执行认证已授予 (Hermes approval): {session_key}")
+        success = True
+    except Exception as e:
+        logger.warning(f"[SOUL] Hermes approval 授予失败: {e}")
+    
+    # 方案2: 本地文件（作为备份）
+    try:
+        EXECUTION_AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        
+        now = datetime.datetime.now()
+        expires = now + datetime.timedelta(hours=1)
+        
+        # 如果没有 plan_path，尝试查找
+        if not plan_path:
+            plan_path = find_execution_plan()
+        
+        data = {
+            "session_id": session_id,
+            "created_at": now.isoformat(),
+            "expires_at": expires.isoformat(),
+            "execution_plan": str(plan_path) if plan_path else ""
+        }
+        
+        EXECUTION_AUTH_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+        logger.info(f"[SOUL] 执行认证已授予 (本地文件): session={session_id}, expires={expires}")
+        success = True
+    except Exception as e:
+        logger.error(f"[SOUL] 授予执行认证失败 (本地文件): {e}")
+    
+    return success
+
+
+# ============ 错误信息构建 ============
+
+def build_error_message(error_type: str, tool_name: str, args: dict) -> str:
+    """构建错误信息 - 包含流程指令"""
+    if error_type == "dangerous":
+        command = args.get("command", "unknown")
+        return f"""【🔴 永久禁止】检测到破坏性命令
+
+命令: {command[:100]}
+危险等级: 最高
+
+此命令被永久禁止，即使有执行认证也无法执行。
+
+---
+
+【📋 下一步操作】
+
+请重新设计方案，避免使用破坏性命令。
+如需类似功能，考虑：
+- 使用安全的替代命令
+- 分步骤执行，避免一次性破坏性操作"""
+
+    elif error_type == "no_auth":
+        path = args.get("path", args.get("command", "unknown"))[:100]
+        return f"""【🔴 执行认证拦截】
+
+操作: {tool_name}
+目标: {path}
+
+此操作需要执行认证才能执行。
+
+---
+
+【📌 请选择处理方式】
+
+使用 clarify 工具询问用户以下问题：
+
+"检测到需要执行认证的写入操作，请选择处理方式："
+
+选项:
+- **确认执行**: 直接执行此操作，跳过方案流程
+- **出方案**: 进入 L3 流程，先生成方案再执行
+- **取消**: 放弃本次操作
+
+---
+
+【⏭️ 用户确认后的执行路径】
+
+**如果选择"确认执行"**:
+1. 告诉用户: "请在终端输入 /approve 或回复 '确认执行'"
+2. 用户确认后，调用 grant_execution_auth(session_id, plan_path) 授予临时认证
+3. 然后可以重新执行此操作
+
+**如果选择"出方案"**:
+1. 进入 L3 流程
+2. 使用 deep-thinking 分析需求
+3. 使用 openclaw-behavior-plan 生成执行方案 (execution_plan.md)
+4. 等待用户确认方案
+5. 确认后执行方案中的步骤
+
+**如果选择"取消"**:
+1. 报告用户已取消
+2. 结束当前任务
+
+---
+
+【⚠️ 约束】
+
+- 禁止在未获得用户确认前重新调用 {tool_name}
+- 必须先使用 clarify 询问用户
+- 必须按照用户选择的路径执行"""
+
+    return f"【SOUL 拦截】未知错误: {error_type}"

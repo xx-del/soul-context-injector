@@ -1,0 +1,18 @@
+{
+  "version": "1.2",
+  "updated": "2026-04-09",
+  "task_levels": {
+    "L0": {"files": ["l0.md"], "description": "微任务：一步问答、查时间"},
+    "L1": {"files": ["l1.md"], "description": "简单查询：读文件、单一搜索"},
+    "L2": {"files": ["l2.md"], "description": "思考分析：分析、推理、创新"},
+    "L3": {"files": ["l3.md"], "description": "出方案：基于分析生成执行方案"},
+    "L4": {"files": ["l4.md"], "description": "执行方案：任务分解、并行执行"}
+  },
+  "rule_categories": {
+    "write_operation": {"files": ["write_rules.md"], "description": "写入操作规则"},
+    "skill_usage": {"files": ["skill_rules.md"], "description": "技能使用规范"},
+    "agent_pool": {"files": ["agent_pool_rules.md"], "description": "Agent Pool Manager"},
+    "code_guidance": {"files": ["code_guidance_rules.md"], "description": "代码指导能力"},
+    "self_improving": {"files": ["self_improving_rules.md"], "description": "自我改进"}
+  }
+}

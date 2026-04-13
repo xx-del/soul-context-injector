@@ -1,0 +1,50 @@
+name: soul-context-injector
+version: "5.2.1"
+description: |
+  任务等级体系 + 技能绑定 + 智能分析 + 工作流检测（L0-L4）
+  
+  v5.2.1 更新：
+  - 修复本地降级模式下缺失的检测字段
+  - 新增 agent_pool / skill_usage / self_improving 检测
+author: OpenClaw Team
+
+# 插件类型
+type: context
+
+# 依赖
+requires:
+  - httpx
+  - pyyaml
+
+# Hook 注册
+hooks:
+  - pre_llm_call    # LLM 调用前注入上下文
+  - pre_tool_call   # 工具调用前拦截危险命令
+  - post_tool_call  # 工具调用后清理
+
+# 配置选项
+config:
+  ollama_url:
+    type: string
+    default: "http://localhost:11434/api/generate"
+    description: Ollama API 地址
+  
+  ollama_model:
+    type: string
+    default: "qwen2.5:7b"
+    description: 使用的 Ollama 模型
+  
+  timeout_ms:
+    type: integer
+    default: 15000
+    description: Ollama 调用超时时间（毫秒）
+  
+  fallback_mode:
+    type: string
+    default: "local"
+    description: Ollama 不可用时的降级模式（local/skip）
+  
+  workflow_cache_ttl:
+    type: integer
+    default: 300
+    description: 工作流触发词缓存时间（秒）
