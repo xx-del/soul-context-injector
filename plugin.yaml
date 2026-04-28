@@ -17,6 +17,7 @@ type: context
 requires:
   - httpx
   - pyyaml
+  - requests  # analyzer.py Ollama API 调用
 
 # Hook 注册
 hooks:

@@ -107,11 +107,10 @@ PLANNING_FILES = [
 ]
 
 # 技能白名单 - 白名单内技能执行的所有操作跳过认证
-SKILL_WHITELIST = [
-    "workflow-manager",
-    "agent-pool",
-    "planning-with-files",
-]
+SKILL_WHITELIST = _plugin_config.get(
+    'skill_whitelist',
+    ["workflow-manager", "agent-pool", "planning-with-files"]
+)
 
 # 确认词 - 用户确认执行方案
 # 注意："执行"已恢复，通过analyzer.py的上下文判断区分语义（确认方案 vs 执行新任务）
