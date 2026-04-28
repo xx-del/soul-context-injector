@@ -74,9 +74,10 @@ def log_violation(violation_type: str, tool_name: str, args: dict, task_id: str)
 
 def is_planning_file(path: str) -> bool:
     """检查是否为规划性文件"""
-    path_lower = path.lower()
+    import os
+    filename = os.path.basename(path).lower()  # 提取文件名再匹配
     for pattern in PLANNING_FILES:
-        if fnmatch(path_lower, pattern.lower()):
+        if fnmatch(filename, pattern.lower()):
             return True
     return False
 
