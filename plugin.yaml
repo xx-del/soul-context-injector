@@ -1,11 +1,13 @@
 name: soul-context-injector
-version: "5.2.1"
+version: "5.5.0"
 description: |
-  任务等级体系 + 技能绑定 + 智能分析 + 工作流检测（L0-L4）
+  任务等级体系 + 工作流本地检测 + 技能绑定 + 智能分析（L0-L4）
   
-  v5.2.1 更新：
-  - 修复本地降级模式下缺失的检测字段
-  - 新增 agent_pool / skill_usage / self_improving 检测
+  v5.5.0 更新：
+  - 新增工作流本地检测（精确匹配，不调用 Ollama）
+  - 工作流任务跳过规则注入，直接注入执行指令
+  - 删除确认词硬编码检测，改为统一由 analyze_task 判断
+  - L4 判断后才授予执行认证
 author: OpenClaw Team
 
 # 插件类型

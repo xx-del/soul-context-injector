@@ -1,24 +1,29 @@
 """
-Soul Context Injector - Hermes Plugin v5.2
+Soul Context Injector - Hermes Plugin v5.5
 
-任务等级体系 + 技能绑定 + 智能分析 + 工作流检测
+任务等级体系 + 工作流本地检测 + 技能绑定 + 智能分析 + 子 agent 放行
 - L0: 微任务（直接回答）
-- L1: 简单查询（直接执行）
+- L1: 简单查询 / 工作流执行（直接执行）
 - L2: 思考任务（deep-thinking）
 - L3: 方案生成（deep-thinking + openclaw-behavior-plan）
 - L4: 方案执行（planning-with-files + agent-pool）
 
-v5.2 更新：
-- 修复本地降级模式下缺失的检测字段
-- 新增 agent_pool / skill_usage / self_improving 检测
-- 删除未使用的导入和函数
+v5.5 更新：
+- 新增工作流本地检测（精确匹配，不调用 Ollama）
+- 工作流任务跳过规则注入，直接注入执行指令
+- 删除确认词硬编码检测，改为统一由 analyze_task 判断
+- L4 判断后才授予执行认证
+
+v5.4 更新：
+- 新增 Layer 0: 子 agent 放行（通过 parent_session_id 检测）
+- 子 agent 继承父 agent 权限，跳过所有拦截
 """
 
 import logging
 from typing import Optional, Dict, Any
 
 # 导入各模块
-from .constants import logger, CONFIRM_KEYWORDS
+from .constants import logger
 from .state import (
     set_active_skill,
     get_active_skill,
@@ -34,7 +39,9 @@ from .interceptor import (
     find_execution_plan,
     log_violation,
     build_error_message,
+    check_workflow_completion,
 )
+from .subagent_detector import is_subagent
 
 
 # ============ Plugin Hooks ============
@@ -52,31 +59,42 @@ def pre_llm_call_hook(
     pre_llm_call Hook - 在每轮对话前注入上下文
     
     流程：
-    1. 用户确认检测 → 授予执行认证
-    2. 任务分析（工作流检测 + Ollama + 本地降级）
+    0. 子 agent 放行 - 跳过上下文注入
+    1. 任务分析（工作流本地检测 → Ollama → 本地降级）
+    2. L4 处理：授予执行认证
     3. 上下文注入
     """
     if not user_message or not user_message.strip():
         return None
     
+    # Layer 0: 子 agent 放行 - 跳过上下文注入
+    if is_subagent(session_id):
+        logger.info(f"[SOUL] 子 agent 放行（LLM）: session={session_id}")
+        return None
+    
     logger.debug(f"[soul] 处理消息: {user_message[:100]}...")
     
     try:
-        # 1. 检查用户确认词 - 授予执行认证
-        if any(kw in user_message for kw in CONFIRM_KEYWORDS):
+        # 1. 分析任务（统一入口：工作流本地检测 → Ollama → 本地降级）
+        decision = analyze_task(user_message)
+        task_level = decision.get("task_level", "L1")
+        workflow_name = decision.get("workflow_name")
+        
+        # 2. L4 处理：授予执行认证
+        if task_level == "L4" and not workflow_name:
             plan_path = find_execution_plan()
             if plan_path:
                 grant_execution_auth(session_id, plan_path)
-        
-        # 2. 分析任务
-        decision = analyze_task(user_message)
-        task_level = decision.get("task_level", "L1")
+                logger.info(f"[SOUL] L4 任务，授予执行认证: {plan_path}")
         
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
         
         if context:
-            logger.info(f"[soul] 注入上下文 {len(context)} 字符，任务等级: {task_level}")
+            log_msg = f"[soul] 注入上下文 {len(context)} 字符，任务等级: {task_level}"
+            if workflow_name:
+                log_msg += f"，工作流: {workflow_name}"
+            logger.info(log_msg)
             return {"context": context}
     
     except Exception as e:
@@ -93,13 +111,20 @@ def pre_tool_call_hook(
     **kwargs
 ) -> Optional[Dict[str, str]]:
     """
-    pre_tool_call Hook - 四层拦截 + 技能白名单
+    pre_tool_call Hook - 六层拦截 + 技能白名单 + 子 agent 放行
     
+    Layer 0: 子 agent 放行 - 继承父 agent 权限
     Layer 1: 技能白名单 - 最优先放行
     Layer 2: 破坏性命令 - 永久禁止
     Layer 3: 增删改操作 - 需要执行认证
-    Layer 4: 其他 - 直接放行
+    Layer 4: 工作流完整性 - 检查是否完成所有步骤
+    Layer 5: 其他 - 直接放行
     """
+    
+    # Layer 0: 子 agent 放行 - 继承父 agent 权限
+    if is_subagent(session_id):
+        logger.info(f"[SOUL] 子 agent 放行: session={session_id}, tool={tool_name}")
+        return None
     
     # 技能加载检测：skill_view 调用时自动设置 active_skill
     if tool_name == "skill_view" and args.get("name"):
@@ -129,7 +154,15 @@ def pre_tool_call_hook(
             logger.warning(f"[SOUL] 拦截未认证操作: {tool_name}")
             return {"error": build_error_message("no_auth", tool_name, args)}
     
-    # Layer 4: 其他 - 直接放行
+    # Layer 4: 工作流完整性检查 - 拦截未完成的输出
+    if tool_name == "send_message":
+        error = check_workflow_completion(session_id, tool_name)
+        if error:
+            log_violation("incomplete_workflow", tool_name, args, task_id)
+            logger.warning(f"[SOUL] 拦截不完整工作流输出")
+            return {"error": error}
+    
+    # Layer 5: 其他 - 直接放行
     return None
 
 
@@ -150,4 +183,4 @@ def register(ctx):
     ctx.register_hook("pre_llm_call", pre_llm_call_hook)
     ctx.register_hook("pre_tool_call", pre_tool_call_hook)
     ctx.register_hook("post_tool_call", post_tool_call_hook)
-    logger.info("[soul-context-injector] 插件已加载 v5.2.1")
+    logger.info("[soul-context-injector] 插件已加载 v5.5")

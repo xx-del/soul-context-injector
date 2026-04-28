@@ -30,6 +30,37 @@ def get_bound_skills(task_level: str) -> List[str]:
     return SKILL_BINDINGS.get(task_level, [])
 
 
+# ============ 工作流执行指令 ============
+
+def build_workflow_directive(workflow_name: str) -> str:
+    """构建工作流执行指令
+    
+    工作流是标准化流程，不需要规则注入
+    """
+    return f"""【工作流执行指令】
+
+检测到工作流任务：{workflow_name}
+
+此任务是自动化流程，直接执行，不需要方案确认。
+
+### 执行流程
+
+1. 调用 `skill_view(name="workflow-manager")` 加载技能
+2. 调用技能执行工作流：`{workflow_name}`
+3. 验证每步执行结果
+4. 汇总所有步骤结果后输出「执行完成」
+
+### 约束
+
+- ✅ 直接执行，不需要方案确认
+- ✅ 必须验证每个步骤的输出
+- ✅ 所有步骤完成后才能输出「执行完成」
+- ❌ 禁止跳过任何步骤
+- ❌ 禁止未执行就输出「完成」
+
+"""
+
+
 # ============ 上下文构建 ============
 
 def build_context(
@@ -43,6 +74,12 @@ def build_context(
     根据任务等级和检测结果，构建完整的上下文内容
     """
     context_parts = []
+    
+    # 0. 工作流检测（最高优先级，跳过所有规则）
+    workflow_name = decision.get("workflow_name")
+    if workflow_name:
+        logger.info(f"[soul] 工作流任务，跳过规则注入: {workflow_name}")
+        return build_workflow_directive(workflow_name)
     
     # 1. 执行指令（L2/L3/L4）
     if task_level in ("L2", "L3", "L4"):
