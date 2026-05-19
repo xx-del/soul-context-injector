@@ -21,6 +21,7 @@ soul-context-injector/
 ├── plugin.yaml          # 插件配置
 ├── analyzer.py          # 任务分析
 ├── context_builder.py   # 上下文构建
+├── enforcer.py          # L4 强制执行器（新增）
 ├── interceptor.py       # 拦截逻辑
 ├── constants.py         # 常量定义
 ├── state.py             # 状态管理
@@ -37,8 +38,7 @@ soul-context-injector/
 │   ├── skill_rules.md   # 技能使用规则
 │   ├── agent_pool_rules.md
 │   ├── code_guidance_rules.md
-│   ├── self_improving_rules.md
-│   └── trigger_conditions.md
+│   └── self_improving_rules.md
 ├── prompts/             # 提示词模板
 │   └── ollama_prompt.md
 └── .backup/             # 历史备份
@@ -91,6 +91,13 @@ tail -f ~/.hermes/logs/hermes.log | grep soul
 
 ## 版本历史
 
+- **v5.3.0** (2026-05-19):
+  - 新增 L4 强制执行器（enforcer.py）
+  - 优化上下文构建器（+424行）
+  - 优化 Ollama 提示词（+151行）
+  - 增强 L2/L3/L4 规则
+  - 增强 subagent 检测
+  - 删除过时的 trigger_conditions.md
 - **v5.1.0** (2026-04-11):
   - 删除过时的状态追踪机制（current_phase, phase_status, phase_action）
   - 重命名 L3 认证 → 执行认证（execution_auth）

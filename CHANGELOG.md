@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.0] - 2026-05-19
+
+### Added
+- L4 enforcer module for strict execution control (enforcer.py)
+- Enhanced context builder with +424 lines of improvements
+- Optimized Ollama prompt with +151 lines (+8% token efficiency)
+- Improved subagent detection mechanism
+
+### Changed
+- Strengthened L2/L3/L4 rules for better task classification
+- Removed obsolete trigger_conditions.md (merged into l4.md)
+
+### Fixed
+- Better handling of edge cases in task level detection
+- Improved context injection accuracy
+
 ## [5.2.1] - 2026-04-13
 
 ### Added

@@ -81,7 +81,26 @@
 
 **认证文件：** `~/.hermes/.soul_execution_auth`
 
-### 5. 违规记录
+### 5. L4 强制执行器（v5.3.0 新增）
+
+确保 L4 任务严格遵守执行规则：
+
+**强制约束：**
+- 必须先有 L3 认证
+- 必须有 execution_plan.md
+- 禁止偏离已确认方案
+- 禁止修改工作流定义的命令
+
+**违规拦截：**
+```
+拦截类型：
+- 跳过步骤
+- 添加未定义验证
+- 修改执行参数
+- 添加 timeout 参数
+```
+
+### 6. 违规记录
 
 被拦截的操作记录到：
 ```
@@ -264,6 +283,11 @@ config:
 | 运行环境 | 仅 Gateway | CLI + Gateway |
 | 违规记录 | corrections.md | soul-violations.log |
 
+**v5.3.0 核心改进：**
+- L4 强制执行器：确保方案严格执行
+- 增强上下文构建：更精准的规则注入
+- 优化提示词：提升分类准确率
+
 **v3.1 核心改进：**
 - 两层拦截：破坏性禁止 + 增删改认证
 - 查询类不处理，减少负担
@@ -288,5 +312,6 @@ export SOUL_LOG_LEVEL=WARN   # 仅警告
 ## 更多信息
 
 - 完整文档：`README.md`
-- 规则说明：`rules/trigger_conditions.md`
-- 源代码：`plugin.py`
+- 变更日志：`CHANGELOG.md`
+- 规则说明：`rules/l4.md`
+- 源代码：`__init__.py`, `enforcer.py`
