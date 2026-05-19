@@ -1,12 +1,19 @@
 """
-Soul Context Injector - Hermes Plugin v5.5
+Soul Context Injector - Hermes Plugin v5.6
 
-任务等级体系 + 工作流本地检测 + 技能绑定 + 智能分析 + 子 agent 放行
+任务等级体系 + 工作流本地检测 + 技能绑定 + 智能分析 + 子 agent 放行 + 工作流强制执行
 - L0: 微任务（直接回答）
 - L1: 简单查询 / 工作流执行（直接执行）
 - L2: 思考任务（deep-thinking）
 - L3: 方案生成（deep-thinking + openclaw-behavior-plan）
 - L4: 方案执行（planning-with-files + agent-pool）
+- W: 工作流任务（workflow-manager 强制执行）
+
+v5.6 更新：
+- 工作流强制执行模式：增强 build_workflow_directive() 注入强制约束
+- 验证清单机制：输出前必须完成技能调用验证
+- enforcer 支持 W 等级：技能追踪 + 输出拦截
+- 禁止行为明确化：跳过步骤、未调用技能、使用历史数据
 
 v5.5 更新：
 - 新增工作流本地检测（精确匹配，不调用 Ollama）
@@ -20,6 +27,7 @@ v5.4 更新：
 """
 
 import logging
+import re
 from typing import Optional, Dict, Any
 
 # 导入各模块
@@ -80,15 +88,24 @@ def pre_llm_call_hook(
         task_level = decision.get("task_level", "L1")
         workflow_name = decision.get("workflow_name")
         
-        # 2. L4 处理：授予执行认证
-        if task_level == "L4" and not workflow_name:
-            plan_path = find_execution_plan()
-            if plan_path:
-                grant_execution_auth(session_id, plan_path)
-                logger.info(f"[SOUL] L4 任务，授予执行认证: {plan_path}")
+        # 2. L4 处理：大模型从上下文判断是否有方案
+        # 删除原因：规则要求检查对话历史上下文，不是检查文件系统
+        # 方案存在性判断应由大模型完成，不是代码层职责
+        # 规则原文：检查对话历史中上文是否有该任务描述一致的 execution_plan.md
+        #
+        # if task_level == "L4" and not workflow_name:
+        #     plan_path = find_execution_plan()
+        #     if plan_path:
+        #         grant_execution_auth(session_id, plan_path)
+        #         logger.info(f"[SOUL] L4 任务，授予执行认证: {plan_path}")
         
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
+        
+        # 4. 创建技能追踪（L2/L3/L4 任务）
+        if task_level in ["L2", "L3", "L4"]:
+            from .enforcer import create_tracker
+            create_tracker(session_id, task_level)
         
         if context:
             log_msg = f"[soul] 注入上下文 {len(context)} 字符，任务等级: {task_level}"
@@ -111,17 +128,62 @@ def pre_tool_call_hook(
     **kwargs
 ) -> Optional[Dict[str, str]]:
     """
-    pre_tool_call Hook - 六层拦截 + 技能白名单 + 子 agent 放行
+    pre_tool_call Hook - 七层拦截 + 技能白名单 + 子 agent 放行
     
-    Layer 0: 子 agent 放行 - 继承父 agent 权限
-    Layer 1: 技能白名单 - 最优先放行
-    Layer 2: 破坏性命令 - 永久禁止
-    Layer 3: 增删改操作 - 需要执行认证
-    Layer 4: 工作流完整性 - 检查是否完成所有步骤
-    Layer 5: 其他 - 直接放行
+    Layer 0: 强制执行检查 - 技能调用追踪（新增）
+    Layer 1: 子 agent 放行 - 继承父 agent 权限
+    Layer 2: 技能白名单 - 最优先放行
+    Layer 3: 破坏性命令 - 永久禁止
+    Layer 4: 增删改操作 - 需要执行认证
+    Layer 5: 工作流完整性 - 检查是否完成所有步骤
+    Layer 6: 其他 - 直接放行
     """
     
-    # Layer 0: 子 agent 放行 - 继承父 agent 权限
+    # Layer 0: 强制执行检查（新增）
+    from .enforcer import should_enforce, check_required_skills, track_skill_call
+    
+    enforce = should_enforce(session_id)
+    logger.info(f"[SOUL] should_enforce({session_id}) = {enforce}, tool={tool_name}")
+    
+    if enforce:
+        # 追踪技能调用
+        if tool_name == "skill_view":
+            skill_name = args.get("name")
+            if skill_name:
+                logger.info(f"[SOUL] 准备追踪技能调用: {skill_name}")
+                result = track_skill_call(session_id, skill_name)
+                logger.info(f"[SOUL] 追踪结果: {result}")
+        
+        # 【v3.0 新增】追踪实际执行（多路径）
+        from .constants import EXECUTION_TYPES, TERMINAL_DETECTION_PATTERNS
+        from .enforcer import track_execution
+        
+        # 1. delegate_task 工具调用
+        if tool_name == "delegate_task":
+            track_execution(session_id, EXECUTION_TYPES["DELEGATE_TASK"], tool_name)
+        
+        # 2. 终端命令检测
+        if tool_name == "terminal":
+            command = args.get("command", "")
+            for pattern in TERMINAL_DETECTION_PATTERNS:
+                if re.search(pattern, command):
+                    track_execution(session_id, EXECUTION_TYPES["TERMINAL_EXECUTION"], tool_name)
+                    break
+        
+        # 3. Python API 检测
+        if tool_name == "execute_code":
+            code = args.get("code", "")
+            if "agent_pool_client" in code or "Orchestrator" in code:
+                track_execution(session_id, EXECUTION_TYPES["PYTHON_API"], tool_name)
+        
+        # 输出拦截（send_message, text_to_speech）
+        if tool_name in ["send_message", "text_to_speech"]:
+            all_called, error = check_required_skills(session_id)
+            if not all_called:
+                log_violation("missing_required_skill", tool_name, args, task_id)
+                return {"error": error}
+    
+    # Layer 1: 子 agent 放行 - 继承父 agent 权限
     if is_subagent(session_id):
         logger.info(f"[SOUL] 子 agent 放行: session={session_id}, tool={tool_name}")
         return None

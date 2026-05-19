@@ -106,6 +106,14 @@ PLANNING_FILES = [
     '*计划*.md'
 ]
 
+# 技能绑定映射
+SKILL_BINDINGS = {
+    "W": ["workflow-manager"],  # 工作流任务 - 硬编码绑定
+    "L2": ["deep-thinking"],
+    "L3": ["deep-thinking", "openclaw-behavior-plan"],
+    "L4": ["planning-with-files", "agent-pool"],
+}
+
 # 技能白名单 - 白名单内技能执行的所有操作跳过认证
 SKILL_WHITELIST = _plugin_config.get(
     'skill_whitelist',
@@ -114,4 +122,56 @@ SKILL_WHITELIST = _plugin_config.get(
 
 # 确认词 - 用户确认执行方案
 # 注意："执行"已恢复，通过analyzer.py的上下文判断区分语义（确认方案 vs 执行新任务）
-CONFIRM_KEYWORDS = ["是", "同意", "确认", "确认执行", "执行", "开始吧", "好的", "可以", "没问题", "approve", "confirm", "yes", "ok"]
+CONFIRM_KEYWORDS = [
+    "是", "同意", "确认", "执行", "好的", "可以", "没问题",
+    "开始吧", "执行吧", "确认执行", "同意执行",
+    "ok", "OK", "yes", "Yes", "approve", "confirm",
+    "好", "嗯", "需要"
+]
+
+# ============================================================================
+# L4 强制执行常量（v3.0 - 2026-05-14）
+# ============================================================================
+
+# 执行方式类型
+EXECUTION_TYPES = {
+    "DELEGATE_TASK": "delegate_task",
+    "AGENT_POOL_CLIENT": "agent_pool_client",
+    "ORCHESTRATOR": "orchestrator",
+    "TERMINAL_EXECUTION": "terminal_execution",
+    "PYTHON_API": "python_api",
+}
+
+# L4 任务必须技能
+REQUIRED_SKILLS_L4 = [
+    "planning-with-files",
+    "agent-pool",
+]
+
+# 最大拦截次数（逃生舱阈值）
+MAX_ESCAPE_ATTEMPTS = 3
+
+# 执行超时（秒）
+EXECUTION_TIMEOUT_SECONDS = 600  # 10 分钟
+
+# 追踪文件 TTL（秒）
+TRACKER_TTL_SECONDS = 86400  # 24 小时
+
+# 终端检测正则
+TERMINAL_DETECTION_PATTERNS = [
+    r'agent_pool_client\.execute\(',
+    r'Orchestrator\([^)]*\)\.batch_execute',
+    r'python\s+-c\s+.*agent_pool',
+    r'python\s+.*agent_pool_client\.py',
+]
+
+# 敏感信息检测正则（phase_info 清理）
+SENSITIVE_PATTERNS = [
+    r'password["\']?\s*[:=]\s*["\']?[^\s"\']+',
+    r'token["\']?\s*[:=]\s*["\']?[^\s"\']+',
+    r'secret["\']?\s*[:=]\s*["\']?[^\s"\']+',
+    r'api_key["\']?\s*[:=]\s*["\']?[^\s"\']+',
+]
+
+# phase_info 最大长度
+PHASE_INFO_MAX_LENGTH = 200

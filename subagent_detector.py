@@ -33,15 +33,17 @@ def is_subagent(session_id: str) -> bool:
     if not session_id or not _STATE_DB_PATH.exists():
         return False
     
+    conn = None
     try:
-        conn = sqlite3.connect(str(_STATE_DB_PATH))
+        # 使用 WAL 模式避免锁竞争
+        conn = sqlite3.connect(str(_STATE_DB_PATH), timeout=5.0)
+        conn.execute("PRAGMA journal_mode=WAL")
         cursor = conn.cursor()
         cursor.execute(
             "SELECT parent_session_id FROM sessions WHERE id = ?",
             (session_id,)
         )
         row = cursor.fetchone()
-        conn.close()
         
         if row and row[0]:
             logger.info(f"[SOUL] 检测到子 agent: session={session_id}, parent={row[0]}")
@@ -49,9 +51,18 @@ def is_subagent(session_id: str) -> bool:
         
         return False
         
+    except sqlite3.Error as e:
+        logger.warning(f"[SOUL] 检测子 agent 数据库错误: {e}")
+        # 数据库错误时，假设是子 agent（安全降级）
+        # 因为子 agent 不应该被拦截
+        return True
     except Exception as e:
-        logger.debug(f"[SOUL] 检测子 agent 失败: {e}")
-        return False
+        logger.warning(f"[SOUL] 检测子 agent 失败: {e}")
+        # 其他错误也安全降级
+        return True
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_parent_session_id(session_id: str) -> Optional[str]:
@@ -67,18 +78,26 @@ def get_parent_session_id(session_id: str) -> Optional[str]:
     if not session_id or not _STATE_DB_PATH.exists():
         return None
     
+    conn = None
     try:
-        conn = sqlite3.connect(str(_STATE_DB_PATH))
+        # 使用 WAL 模式避免锁竞争
+        conn = sqlite3.connect(str(_STATE_DB_PATH), timeout=5.0)
+        conn.execute("PRAGMA journal_mode=WAL")
         cursor = conn.cursor()
         cursor.execute(
             "SELECT parent_session_id FROM sessions WHERE id = ?",
             (session_id,)
         )
         row = cursor.fetchone()
-        conn.close()
         
         return row[0] if row else None
         
-    except Exception as e:
-        logger.debug(f"[SOUL] 获取父 session 失败: {e}")
+    except sqlite3.Error as e:
+        logger.warning(f"[SOUL] 获取父 session 数据库错误: {e}")
         return None
+    except Exception as e:
+        logger.warning(f"[SOUL] 获取父 session 失败: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
