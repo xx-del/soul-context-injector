@@ -43,7 +43,7 @@ except ImportError:
         "PYTHON_API": "python_api",
     }
     REQUIRED_SKILLS_L4 = ["planning-with-files", "agent-pool"]
-    MAX_ESCAPE_ATTEMPTS = 3
+    MAX_ESCAPE_ATTEMPTS = 7  # Increased from 3 to prevent quick bypass
     EXECUTION_TIMEOUT_SECONDS = 600
     TRACKER_TTL_SECONDS = 86400
     TERMINAL_DETECTION_PATTERNS = []

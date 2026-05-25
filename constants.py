@@ -95,6 +95,14 @@ WRITE_PATTERNS = [
 # 增删改工具 - 需要执行认证
 WRITE_TOOLS = {"write_file", "patch"}
 
+# 输出类工具 - 需要技能调用检查
+OUTPUT_TOOLS = {
+    "send_message",      # Telegram/Discord/Slack 消息
+    "text_to_speech",    # 语音输出
+    "execute_code",      # Python 代码执行（可能输出结果）
+    "terminal",          # 终端命令（可能输出结果）
+}
+
 # 规划性文件（L3 阶段允许写入，不触发认证）
 PLANNING_FILES = [
     'execution_plan.md',
@@ -149,7 +157,7 @@ REQUIRED_SKILLS_L4 = [
 ]
 
 # 最大拦截次数（逃生舱阈值）
-MAX_ESCAPE_ATTEMPTS = 3
+MAX_ESCAPE_ATTEMPTS = 7  # Increased from 3 to prevent quick bypass
 
 # 执行超时（秒）
 EXECUTION_TIMEOUT_SECONDS = 600  # 10 分钟

@@ -16,7 +16,7 @@ def test_escape_mechanism():
     
     # 模拟拦截（通过直接修改 escape_attempts）
     tracker = get_tracker(session_id)
-    tracker["escape_attempts"] = 3
+    tracker["escape_attempts"] = 7
     from enforcer import _update_tracker_data
     _update_tracker_data(session_id, {"escape_attempts": 3})
     

@@ -44,7 +44,7 @@ def build_phase_info(task_level: str) -> dict:
         return {
             "current_phase": "Phase 0",
             "phase_step": "Step 1",
-            "flow_locked": False  # 不锁定
+            "flow_locked": True  # 强制锁定，必须按流程执行（调用 openclaw-behavior-plan）
         }
     elif task_level == "L2":
         return {
@@ -110,16 +110,109 @@ def build_workflow_directive(workflow_name: str, session_id: str = None) -> str:
 """
 
 
-# ============ L4 强制执行指令 ============
+# ============ L2/L3/L4 强制执行指令 ============
+
+def build_l2_directive(session_id: str) -> str:
+    """构建 L2 思考任务指令"""
+    return """【L2 思考任务 - 强制执行】
+
+检测到思考任务，需要调用 deep-thinking 技能。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  强制约束（必须严格遵守）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 【第一步】你必须调用 skill_view(name="deep-thinking") 加载技能
+2. 【第二步】按照 deep-thinking SKILL.md 中的步骤执行分析
+3. 【禁止】未调用技能直接输出分析内容
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 执行前验证清单
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- [ ] 已调用 skill_view(name="deep-thinking")
+- [ ] 已按照技能步骤执行分析
+- [ ] 已形成结论
+
+"""
+
+
+def build_l3_directive(session_id: str) -> str:
+    """构建 L3 方案生成指令"""
+    return """【L3 方案生成任务 - 强制执行】
+
+检测到方案生成任务，需要调用 deep-thinking + openclaw-behavior-plan 技能。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  强制约束（必须严格遵守）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 【第一步】检查是否有 L2 分析结果
+   - 有则跳到步骤 3
+   - 无则执行步骤 2
+
+2. 【第二步】调用 skill_view(name="deep-thinking") 执行分析
+
+3. 【第三步】调用 skill_view(name="openclaw-behavior-plan") 生成方案
+
+4. 【第四步】输出方案，等待用户确认
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 执行前验证清单
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- [ ] 已检查 L2 分析结果
+- [ ] 如无 L2，已调用 deep-thinking
+- [ ] 已调用 openclaw-behavior-plan
+- [ ] 已生成 execution_plan.md
+- [ ] 已等待用户确认
+
+"""
+
+
+def build_l4_explicit_directive(session_id: str) -> str:
+    """构建 L4 执行指令（增强版）"""
+    return """【L4 执行方案 - 强制执行】
+
+检测到方案执行任务，需要调用 planning-with-files + agent-pool 技能。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  强制约束（必须严格遵守）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 【第一步】你必须调用 skill_view(name="planning-with-files") 加载技能
+2. 【第二步】你必须调用 skill_view(name="agent-pool") 加载技能
+3. 【第三步】你必须使用以下方式之一执行任务：
+   - delegate_task() 工具
+   - agent_pool_client.execute() Python API
+   - 终端: python ~/.hermes/skills/openclaw-imports/agent-pool/bin/agent-pool
+4. 【禁止】未调用技能直接执行
+5. 【禁止】未执行实际任务就输出结果
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 执行前验证清单
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- [ ] 已调用 skill_view(name="planning-with-files")
+- [ ] 已调用 skill_view(name="agent-pool")
+- [ ] 已执行 delegate_task 或 agent_pool_client
+- [ ] 已汇总结果到 progress.md
+
+"""
+
+
+# ============ L4 强制执行指令（旧版，保留兼容） ============
 
 def build_l4_directive(session_id: str = None, decision: Dict[str, Any] = None) -> str:
-    """构建 L4 强制执行指令
+    """构建 L4 上下文补充（追踪器创建 + phase_info）
     
     Args:
         session_id: 会话ID（用于追踪）
         decision: 决策结果（包含原始上下文信息）
     
     ⚠️ 关联规则: rules/l4.md（修改时需同步）
+    
+    注意：L4 的执行规则由 l4.md 提供，不再硬编码
     """
     # session_id 为空时降级为软提醒
     if not session_id:
@@ -145,7 +238,7 @@ def build_l4_directive(session_id: str = None, decision: Dict[str, Any] = None) 
     else:
         create_tracker(session_id, "L4")
     
-    # 合并必需上下文
+    # 合并必需上下文（phase_info）
     context_parts = []
     
     if decision:
@@ -160,45 +253,8 @@ def build_l4_directive(session_id: str = None, decision: Dict[str, Any] = None) 
 
 """)
     
-    # 构建强制指令
-    directive = f"""【L4 任务 - 强制执行模式】
-
-检测到 L4 任务：方案执行
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✅ 必须依次完成：
-1. skill_view("planning-with-files") → 加载任务分解技能
-2. skill_view("agent-pool") → 加载执行技能
-3. delegate_task(...) 或 agent_pool_client.execute(...) → 实际执行
-
-【禁止】跳过任何步骤
-【禁止】主 AI 直接手动执行（必须通过 agent-pool）
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行验证清单
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-在输出最终结果前，确认以下项全部完成：
-
-- [ ] 已调用 skill_view("planning-with-files")
-- [ ] 已调用 skill_view("agent-pool")
-- [ ] 已创建 task_plan.md
-- [ ] 已调用 delegate_task 或 agent_pool_client.execute()
-- [ ] 已汇总结果到 progress.md
-
-⚠️ 验证清单未完成 → 禁止输出最终结果
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-绑定技能: planning-with-files, agent-pool
-任务等级: L4
-
-"""
-    
-    return "".join(context_parts) + directive
+    # 返回 phase_info（执行规则由 l4.md 提供，不再硬编码）
+    return "".join(context_parts)
 
 
 def _clean_phase_info(phase_info) -> str:
@@ -275,9 +331,14 @@ def build_context(
         logger.info(f"[soul] 工作流任务，跳过规则注入: {workflow_name or '未指定'}")
         return build_workflow_directive(workflow_name or "未指定工作流", session_id)
     
-    # 【v3.0 新增】L4 强制执行模式
-    if task_level == "L4":
-        return build_l4_directive(session_id, decision)
+    # 【v3.1 修复】L4 不再 early return，走与 L0-L3 相同的路径
+    # L2/L3/L4 注入明确的执行指令
+    if task_level == "L2":
+        context_parts.append(build_l2_directive(session_id))
+    elif task_level == "L3":
+        context_parts.append(build_l3_directive(session_id))
+    elif task_level == "L4":
+        context_parts.append(build_l4_explicit_directive(session_id))
     
     # 获取绑定技能和流程信息
     bound_skills = get_bound_skills(task_level)

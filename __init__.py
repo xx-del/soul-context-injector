@@ -88,16 +88,12 @@ def pre_llm_call_hook(
         task_level = decision.get("task_level", "L1")
         workflow_name = decision.get("workflow_name")
         
-        # 2. L4 处理：大模型从上下文判断是否有方案
-        # 删除原因：规则要求检查对话历史上下文，不是检查文件系统
-        # 方案存在性判断应由大模型完成，不是代码层职责
-        # 规则原文：检查对话历史中上文是否有该任务描述一致的 execution_plan.md
-        #
-        # if task_level == "L4" and not workflow_name:
-        #     plan_path = find_execution_plan()
-        #     if plan_path:
-        #         grant_execution_auth(session_id, plan_path)
-        #         logger.info(f"[SOUL] L4 任务，授予执行认证: {plan_path}")
+        # 2. L4 处理：授予执行认证
+        if task_level == "L4" and not workflow_name:
+            plan_path = find_execution_plan()
+            if plan_path:
+                grant_execution_auth(session_id, plan_path)
+                logger.info(f"[SOUL] L4 任务，授予执行认证: {plan_path}")
         
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
@@ -176,8 +172,10 @@ def pre_tool_call_hook(
             if "agent_pool_client" in code or "Orchestrator" in code:
                 track_execution(session_id, EXECUTION_TYPES["PYTHON_API"], tool_name)
         
-        # 输出拦截（send_message, text_to_speech）
-        if tool_name in ["send_message", "text_to_speech"]:
+        # 输出拦截（所有输出类工具）
+        from .constants import OUTPUT_TOOLS
+
+        if tool_name in OUTPUT_TOOLS:
             all_called, error = check_required_skills(session_id)
             if not all_called:
                 log_violation("missing_required_skill", tool_name, args, task_id)
