@@ -37,10 +37,7 @@ from .analyzer import analyze_task
 from .context_builder import build_context
 from .interceptor import (
     is_dangerous_command,
-    is_write_operation,
-    has_execution_auth,
     grant_execution_auth,
-    get_auth_file,
     log_violation,
     build_error_message,
     check_workflow_completion,
