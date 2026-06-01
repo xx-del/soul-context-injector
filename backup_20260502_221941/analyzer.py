@@ -75,7 +75,7 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                 logger.info(f"[soul] 工作流本地检测命中（完全匹配）: {name}")
                 return {
                     "success": True,
-                    "task_level": "W",
+                    "task_level": "L1",
                     "workflow_name": name,
                     "write_operation": False,
                     "code_guidance": False,
@@ -84,56 +84,53 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                     "self_improving": False,
                 }
         
-        # 2. 包含"工作流"三字 → 直接返回 W
+        # 2. 包含"工作流"三字 + 名称/标签匹配
         if "工作流" in user_message:
-            # 尝试匹配具体工作流名称（用于日志记录）
-            matched_name = None
             for name in workflow_names:
                 if name.lower() in msg_lower:
-                    matched_name = name
-                    break
-            if not matched_name:
-                for tag in workflow_tags:
-                    if tag.lower() in msg_lower:
-                        for wf in index.get('workflows', []):
-                            if wf.get('status') == 'active' and tag in wf.get('tags', []):
-                                matched_name = wf['name']
-                                break
-                        if matched_name:
-                            break
-            
-            logger.info(f"[soul] 工作流本地检测命中（包含'工作流'）: {matched_name or '未匹配具体工作流'}")
-            return {
-                "success": True,
-                "task_level": "W",
-                "workflow_name": matched_name,
-                "write_operation": False,
-                "code_guidance": False,
-                "agent_pool": False,
-                "skill_usage": True,
-                "self_improving": False,
-            }
+                    logger.info(f"[soul] 工作流本地检测命中（包含'工作流'）: {name}")
+                    return {
+                        "success": True,
+                        "task_level": "L1",
+                        "workflow_name": name,
+                        "write_operation": False,
+                        "code_guidance": False,
+                        "agent_pool": False,
+                        "skill_usage": True,
+                        "self_improving": False,
+                    }
+            for tag in workflow_tags:
+                if tag.lower() in msg_lower:
+                    # 找到对应的第一个工作流名称
+                    for wf in index.get('workflows', []):
+                        if wf.get('status') == 'active' and tag in wf.get('tags', []):
+                            logger.info(f"[soul] 工作流本地检测命中（标签匹配'工作流'）: {wf['name']}")
+                            return {
+                                "success": True,
+                                "task_level": "L1",
+                                "workflow_name": wf['name'],
+                                "write_operation": False,
+                                "code_guidance": False,
+                                "agent_pool": False,
+                                "skill_usage": True,
+                                "self_improving": False,
+                            }
         
-        # 3. 包含"流程"二字 → 直接返回 W
+        # 3. 包含"流程"二字 + 名称匹配
         if "流程" in user_message:
-            # 尝试匹配具体工作流名称（用于日志记录）
-            matched_name = None
             for name in workflow_names:
                 if name.lower() in msg_lower:
-                    matched_name = name
-                    break
-            
-            logger.info(f"[soul] 工作流本地检测命中（包含'流程'）: {matched_name or '未匹配具体工作流'}")
-            return {
-                "success": True,
-                "task_level": "W",
-                "workflow_name": matched_name,
-                "write_operation": False,
-                "code_guidance": False,
-                "agent_pool": False,
-                "skill_usage": True,
-                "self_improving": False,
-            }
+                    logger.info(f"[soul] 工作流本地检测命中（包含'流程'）: {name}")
+                    return {
+                        "success": True,
+                        "task_level": "L1",
+                        "workflow_name": name,
+                        "write_operation": False,
+                        "code_guidance": False,
+                        "agent_pool": False,
+                        "skill_usage": True,
+                        "self_improving": False,
+                    }
         
         # 4. 模糊匹配：用户消息包含工作流名称或标签
         # 匹配优先级：名称 > 标签
@@ -142,7 +139,7 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                 logger.info(f"[soul] 工作流本地检测命中（模糊匹配名称）: {name}")
                 return {
                     "success": True,
-                    "task_level": "W",
+                    "task_level": "L1",
                     "workflow_name": name,
                     "write_operation": False,
                     "code_guidance": False,
@@ -159,7 +156,7 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                         logger.info(f"[soul] 工作流本地检测命中（模糊匹配标签）: {wf['name']}")
                         return {
                             "success": True,
-                            "task_level": "W",
+                            "task_level": "L1",
                             "workflow_name": wf['name'],
                             "write_operation": False,
                             "code_guidance": False,
@@ -228,52 +225,25 @@ class LocalRuleClient:
         workflow_result = detect_workflow_local(prompt)
         if workflow_result:
             logger.info("[soul] 本地降级：工作流检测命中")
-            return "W"
+            return "L1"
         
-        # 1. 确认词检测（优化后）
+        # 1. 确认词检测 → L4（已有方案，用户确认执行）
         if any(kw in lower for kw in CONFIRM_KEYWORDS):
+            # 排除明确要执行其他任务的情况
+            if any(kw in lower for kw in ["命令", "脚本", "文件", "代码"]):
+                return "L3"
             
-            # 步骤1.1: 排除"同意后执行"模式（这是描述执行方式，不是确认已有方案）
-            confirm_then_exec_patterns = [
-                "同意后执行", "同意后实施", "同意后部署",
-                "确认后执行", "确认后实施", "确认后部署",
-                "批准后执行", "批准后实施",
-                "我同意后执行", "我确认后执行",
-            ]
-            has_confirm_then_exec = any(p in lower for p in confirm_then_exec_patterns)
+            # 检查是否存在方案文件
+            plan_path = find_execution_plan()
+            if plan_path and plan_path.exists():
+                return "L4"
             
-            if not has_confirm_then_exec:
-                # 步骤1.2: 纯确认词检测（只包含确认词+标点，无其他任务内容）
-                stripped = lower.strip()
-                pure_confirm = any(
-                    stripped == kw or 
-                    stripped.rstrip("。，！？!?.") == kw 
-                    for kw in ["是", "同意", "确认", "执行", "好的", "可以", 
-                              "ok", "yes", "需要", "没问题", "开始吧", "执行吧"]
-                )
-                
-                if pure_confirm:
-                    # 纯确认词 → L4（不再要求方案文件存在）
-                    return "L4"
-                
-                # 步骤1.3: 短消息+确认词 → L4
-                if len(stripped) <= 20:
-                    confirm_prefix = any(stripped.startswith(kw) for kw in CONFIRM_KEYWORDS)
-                    if confirm_prefix:
-                        return "L4"
-                
-                # 步骤1.4: 检查是否包含新任务描述
-                new_task_keywords = [
-                    "设计", "制定", "创建", "生成", "优化方案",
-                    "分析", "修复", "改进", "重构", "实现"
-                ]
-                has_new_task = any(kw in lower for kw in new_task_keywords)
-                
-                if not has_new_task:
-                    # 确认词但不是新任务 → 返回 L4，由大模型从上下文判断
-                    return "L4"
+            # 检查是否是单独的确认词（没有具体执行对象）
+            confirm_alone = any(kw == lower.strip() for kw in ["是", "同意", "确认", "执行", "好的", "可以", "ok", "yes"])
+            if not confirm_alone:
+                return "L3"  # 有具体执行对象 → L3
             
-            # 继续到下面的关键词判断逻辑（不再直接return "L3"）
+            return "L3"  # 无方案文件 → L3
         
         # 2. 执行类关键词 → L3（实际执行）
         exec_kws = ["创建", "实施", "执行", "部署", "安装", "卸载", "修改", "删除", "写入", "create", "implement", "deploy"]

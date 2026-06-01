@@ -27,7 +27,6 @@ v5.4 更新：
 """
 
 import logging
-import re
 from typing import Optional, Dict, Any
 
 # 导入各模块
@@ -44,7 +43,7 @@ from .interceptor import (
     is_write_operation,
     has_execution_auth,
     grant_execution_auth,
-    get_auth_file,
+    find_execution_plan,
     log_violation,
     build_error_message,
     check_workflow_completion,
@@ -88,10 +87,16 @@ def pre_llm_call_hook(
         task_level = decision.get("task_level", "L1")
         workflow_name = decision.get("workflow_name")
         
-        # 2. L4 处理：大模型自主判断是否执行方案
-        # 方案路径由大模型从上下文中判断，不再通过代码查找
-        if task_level == "L4" and not workflow_name:
-            logger.info(f"[SOUL] L4 任务，等待大模型判断方案")
+        # 2. L4 处理：大模型从上下文判断是否有方案
+        # 删除原因：规则要求检查对话历史上下文，不是检查文件系统
+        # 方案存在性判断应由大模型完成，不是代码层职责
+        # 规则原文：检查对话历史中上文是否有该任务描述一致的 execution_plan.md
+        #
+        # if task_level == "L4" and not workflow_name:
+        #     plan_path = find_execution_plan()
+        #     if plan_path:
+        #         grant_execution_auth(session_id, plan_path)
+        #         logger.info(f"[SOUL] L4 任务，授予执行认证: {plan_path}")
         
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
@@ -134,62 +139,17 @@ def pre_tool_call_hook(
     """
     
     # Layer 0: 强制执行检查（新增）
-    from .enforcer import should_enforce, check_required_skills, track_skill_call, get_tracker
+    from .enforcer import should_enforce, check_required_skills, track_skill_call
     
-    enforce = should_enforce(session_id)
-    logger.info(f"[SOUL] should_enforce({session_id}) = {enforce}, tool={tool_name}")
-    
-    if enforce:
+    if should_enforce(session_id):
         # 追踪技能调用
         if tool_name == "skill_view":
             skill_name = args.get("name")
             if skill_name:
-                logger.info(f"[SOUL] 准备追踪技能调用: {skill_name}")
-                result = track_skill_call(session_id, skill_name)
-                logger.info(f"[SOUL] 追踪结果: {result}")
+                track_skill_call(session_id, skill_name)
         
-        # 【v3.0 新增】追踪实际执行（多路径）
-        from .constants import EXECUTION_TYPES, TERMINAL_DETECTION_PATTERNS
-        from .enforcer import track_execution
-        
-        # 1. delegate_task 工具调用
-        if tool_name == "delegate_task":
-            track_execution(session_id, EXECUTION_TYPES["DELEGATE_TASK"], tool_name)
-        
-        # 2. 终端命令检测
-        if tool_name == "terminal":
-            command = args.get("command", "")
-            for pattern in TERMINAL_DETECTION_PATTERNS:
-                if re.search(pattern, command):
-                    track_execution(session_id, EXECUTION_TYPES["TERMINAL_EXECUTION"], tool_name)
-                    break
-        
-        # 3. Python API 检测
-        if tool_name == "execute_code":
-            code = args.get("code", "")
-            if "agent_pool_client" in code or "Orchestrator" in code:
-                track_execution(session_id, EXECUTION_TYPES["PYTHON_API"], tool_name)
-
-        # 【v3.0 新增】技能验证后自动授予认证
-        tracker = get_tracker(session_id)
-        if tracker:
-            task_level = tracker.get("task_level")
-            if task_level == "L4":
-                from .interceptor import grant_execution_auth
-                from .constants import REQUIRED_SKILLS_L4
-
-                called = tracker.get("called_skills", [])
-                executed_by = tracker.get("executed_by", [])
-
-                # 技能调用完成 + 实际执行发生 → 授予认证
-                if all(s in called for s in REQUIRED_SKILLS_L4) and executed_by:
-                    grant_execution_auth(session_id, task_description="L4 execution verified")
-                    logger.info(f"[SOUL] L4 执行认证授予: skills={called}, execution={executed_by}")
-
-        # 输出拦截（所有输出类工具）
-        from .constants import OUTPUT_TOOLS
-
-        if tool_name in OUTPUT_TOOLS:
+        # 输出拦截（send_message, text_to_speech）
+        if tool_name in ["send_message", "text_to_speech"]:
             all_called, error = check_required_skills(session_id)
             if not all_called:
                 log_violation("missing_required_skill", tool_name, args, task_id)

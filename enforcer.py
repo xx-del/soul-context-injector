@@ -325,15 +325,25 @@ def check_required_skills(session_id: str) -> Tuple[bool, Optional[str]]:
 
 ---
 
+【回退选项】
+
+如果 agent-pool 不可用：
+
+**选项 A: 回退到 L3（生成方案）**
+1. skill_view("deep-thinking")
+2. skill_view("openclaw-behavior-plan")
+3. 生成 execution_plan.md
+
+**选项 B: 回退到 L2（仅分析）**
+1. skill_view("deep-thinking")
+2. 输出分析结论
+
+---
+
 【自动放行机制】
 
 拦截次数: {escape_attempts}/{MAX_ESCAPE_ATTEMPTS}
-达到 {MAX_ESCAPE_ATTEMPTS} 次后将自动放行
-
-⚠️ 若 agent-pool 不可用，请检查：
-1. agent-pool 技能是否正确安装
-2. agent_pool_client.py 是否存在
-3. 可用 agent 列表是否为空
+达到 {MAX_ESCAPE_ATTEMPTS} 次后将自动放行（触发回退）
 
 ---
 

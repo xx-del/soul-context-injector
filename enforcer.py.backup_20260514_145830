@@ -1,0 +1,154 @@
+"""
+强制执行器 - 技能调用追踪 + 输出拦截
+
+功能：
+1. 追踪技能调用（skill_view）
+2. 输出前检查（send_message）
+3. 违规拦截
+"""
+
+import json
+import datetime
+from pathlib import Path
+from typing import Optional, Dict, Any, List
+
+# 支持相对导入和绝对导入
+try:
+    from .constants import logger, SKILL_BINDINGS
+except ImportError:
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("soul-enforcer")
+    # 降级时使用本地定义
+    SKILL_BINDINGS = {
+        "W": ["workflow-manager"],
+        "L2": ["deep-thinking"],
+        "L3": ["deep-thinking", "openclaw-behavior-plan"],
+        "L4": ["planning-with-files", "agent-pool"],
+    }
+
+# 追踪文件目录
+TRACKING_DIR = Path.home() / ".hermes" / "skill-tracking"
+
+
+def create_tracker(session_id: str, task_level: str) -> Path:
+    """创建技能追踪文件"""
+    TRACKING_DIR.mkdir(parents=True, exist_ok=True)
+    
+    required_skills = SKILL_BINDINGS.get(task_level, [])
+    
+    tracker_data = {
+        "session_id": session_id,
+        "task_level": task_level,
+        "created_at": datetime.datetime.now().isoformat(),
+        "called_skills": [],  # 已调用的技能列表
+        "required_skills": required_skills,  # 必须调用的技能
+    }
+    
+    tracker_file = TRACKING_DIR / f"{session_id}.json"
+    tracker_file.write_text(json.dumps(tracker_data, ensure_ascii=False, indent=2))
+    logger.info(f"[SOUL-ENFORCER] 创建技能追踪: session={session_id}, level={task_level}, required={required_skills}")
+    
+    return tracker_file
+
+
+def get_tracker(session_id: str) -> Optional[Dict[str, Any]]:
+    """获取技能追踪数据"""
+    tracker_file = TRACKING_DIR / f"{session_id}.json"
+    if not tracker_file.exists():
+        return None
+    
+    try:
+        return json.loads(tracker_file.read_text())
+    except Exception as e:
+        logger.error(f"[SOUL-ENFORCER] 读取追踪文件失败: {e}")
+        return None
+
+
+def update_tracker(session_id: str, data: Dict[str, Any]) -> bool:
+    """更新技能追踪数据"""
+    tracker_file = TRACKING_DIR / f"{session_id}.json"
+    if not tracker_file.exists():
+        return False
+    
+    try:
+        tracker_file.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+        return True
+    except Exception as e:
+        logger.error(f"[SOUL-ENFORCER] 更新追踪文件失败: {e}")
+        return False
+
+
+def track_skill_call(session_id: str, skill_name: str) -> bool:
+    """追踪技能调用"""
+    tracker = get_tracker(session_id)
+    if not tracker:
+        return False
+    
+    if skill_name not in tracker["called_skills"]:
+        tracker["called_skills"].append(skill_name)
+        update_tracker(session_id, tracker)
+        logger.info(f"[SOUL-ENFORCER] 技能调用追踪: session={session_id}, skill={skill_name}")
+    
+    return True
+
+
+def has_called_skill(session_id: str, skill_name: str) -> bool:
+    """检查是否调用了指定技能"""
+    tracker = get_tracker(session_id)
+    if not tracker:
+        return False
+    
+    return skill_name in tracker["called_skills"]
+
+
+def check_required_skills(session_id: str) -> tuple[bool, Optional[str]]:
+    """检查是否调用了所有必须技能
+    
+    Returns:
+        (all_called, error_message)
+    """
+    tracker = get_tracker(session_id)
+    if not tracker:
+        return True, None  # 无追踪文件，放行
+    
+    required = tracker.get("required_skills", [])
+    called = tracker.get("called_skills", [])
+    
+    missing = [s for s in required if s not in called]
+    
+    if missing:
+        return False, f"""【规则违反】
+
+未调用必须技能: {', '.join(missing)}
+
+当前任务等级: {tracker.get('task_level')}
+已调用技能: {', '.join(called) if called else '无'}
+
+---
+
+【正确流程】
+
+1. 先调用必须技能（{', '.join(missing)}）
+2. 完成技能要求的分析/方案生成
+3. 再输出结果
+
+---
+
+⚠️ 此拦截由 soul-context-injector 强制执行机制触发
+"""
+    
+    return True, None
+
+
+def should_enforce(session_id: str) -> bool:
+    """判断是否需要强制执行
+    
+    L2/L3/L4/W 任务需要强制执行
+    """
+    tracker = get_tracker(session_id)
+    if not tracker:
+        return False
+    
+    task_level = tracker.get("task_level")
+    return task_level in ["L2", "L3", "L4", "W"]

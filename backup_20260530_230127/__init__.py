@@ -44,7 +44,7 @@ from .interceptor import (
     is_write_operation,
     has_execution_auth,
     grant_execution_auth,
-    get_auth_file,
+    find_execution_plan,
     log_violation,
     build_error_message,
     check_workflow_completion,
@@ -88,10 +88,12 @@ def pre_llm_call_hook(
         task_level = decision.get("task_level", "L1")
         workflow_name = decision.get("workflow_name")
         
-        # 2. L4 处理：大模型自主判断是否执行方案
-        # 方案路径由大模型从上下文中判断，不再通过代码查找
+        # 2. L4 处理：授予执行认证
         if task_level == "L4" and not workflow_name:
-            logger.info(f"[SOUL] L4 任务，等待大模型判断方案")
+            plan_path = find_execution_plan()
+            if plan_path:
+                grant_execution_auth(session_id, plan_path)
+                logger.info(f"[SOUL] L4 任务，授予执行认证: {plan_path}")
         
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
@@ -134,7 +136,7 @@ def pre_tool_call_hook(
     """
     
     # Layer 0: 强制执行检查（新增）
-    from .enforcer import should_enforce, check_required_skills, track_skill_call, get_tracker
+    from .enforcer import should_enforce, check_required_skills, track_skill_call
     
     enforce = should_enforce(session_id)
     logger.info(f"[SOUL] should_enforce({session_id}) = {enforce}, tool={tool_name}")
@@ -169,23 +171,7 @@ def pre_tool_call_hook(
             code = args.get("code", "")
             if "agent_pool_client" in code or "Orchestrator" in code:
                 track_execution(session_id, EXECUTION_TYPES["PYTHON_API"], tool_name)
-
-        # 【v3.0 新增】技能验证后自动授予认证
-        tracker = get_tracker(session_id)
-        if tracker:
-            task_level = tracker.get("task_level")
-            if task_level == "L4":
-                from .interceptor import grant_execution_auth
-                from .constants import REQUIRED_SKILLS_L4
-
-                called = tracker.get("called_skills", [])
-                executed_by = tracker.get("executed_by", [])
-
-                # 技能调用完成 + 实际执行发生 → 授予认证
-                if all(s in called for s in REQUIRED_SKILLS_L4) and executed_by:
-                    grant_execution_auth(session_id, task_description="L4 execution verified")
-                    logger.info(f"[SOUL] L4 执行认证授予: skills={called}, execution={executed_by}")
-
+        
         # 输出拦截（所有输出类工具）
         from .constants import OUTPUT_TOOLS
 

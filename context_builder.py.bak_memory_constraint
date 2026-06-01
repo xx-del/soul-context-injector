@@ -44,7 +44,7 @@ def build_phase_info(task_level: str) -> dict:
         return {
             "current_phase": "Phase 0",
             "phase_step": "Step 1",
-            "flow_locked": True  # 强制锁定，必须按流程执行（调用 openclaw-behavior-plan）
+            "flow_locked": False  # 不锁定
         }
     elif task_level == "L2":
         return {
@@ -110,214 +110,6 @@ def build_workflow_directive(workflow_name: str, session_id: str = None) -> str:
 """
 
 
-# ============ L2/L3/L4 强制执行指令 ============
-
-def build_l2_directive(session_id: str) -> str:
-    """构建 L2 思考任务指令"""
-    return """【L2 思考任务 - 强制执行】
-
-检测到思考任务，需要调用 deep-thinking 技能。
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. 【第一步】你必须调用 skill_view(name="deep-thinking") 加载技能
-2. 【第二步】按照 deep-thinking SKILL.md 中的步骤执行分析
-3. 【禁止】未调用技能直接输出分析内容
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行前验证清单
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- [ ] 已调用 skill_view(name="deep-thinking")
-- [ ] 已按照技能步骤执行分析
-- [ ] 已形成结论
-
-"""
-
-
-def build_l3_directive(session_id: str) -> str:
-    """构建 L3 方案生成指令"""
-    return """【L3 方案生成任务 - 强制执行】
-
-检测到方案生成任务，需要调用 deep-thinking + openclaw-behavior-plan 技能。
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. 【第一步】检查是否有 L2 分析结果
-   - 有则跳到步骤 3
-   - 无则执行步骤 2
-
-2. 【第二步】调用 skill_view(name="deep-thinking") 执行分析
-
-3. 【第三步】调用 skill_view(name="openclaw-behavior-plan") 生成方案
-
-4. 【第四步】输出方案，等待用户确认
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行前验证清单
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- [ ] 已检查 L2 分析结果
-- [ ] 如无 L2，已调用 deep-thinking
-- [ ] 已调用 openclaw-behavior-plan
-- [ ] 已生成 execution_plan.md
-- [ ] 已等待用户确认
-
-"""
-
-
-def build_l4_explicit_directive(session_id: str) -> str:
-    """构建 L4 执行指令（增强版 + 回退支持）"""
-    return """【L4 执行方案 - 强制执行】
-
-检测到方案执行任务，需要调用 planning-with-files + agent-pool 技能。
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. 【第一步】你必须调用 skill_view(name="planning-with-files") 加载技能
-2. 【第二步】你必须调用 skill_view(name="agent-pool") 加载技能
-3. 【第三步】你必须使用以下方式之一执行任务：
-   - delegate_task() 工具
-   - agent_pool_client.execute() Python API
-   - 终端: python ~/.hermes/skills/openclaw-imports/agent-pool/bin/agent-pool
-4. 【禁止】未调用技能直接执行
-5. 【禁止】未执行实际任务就输出结果
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行前验证清单
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- [ ] 已调用 skill_view(name="planning-with-files")
-- [ ] 已调用 skill_view(name="agent-pool")
-- [ ] 已执行 delegate_task 或 agent_pool_client
-- [ ] 已汇总结果到 progress.md
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔄 回退机制（L4 → L3 → L2）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-如果 agent-pool 不可用，按以下顺序回退：
-
-**回退到 L3（方案生成）**：
-1. 调用 skill_view(name="deep-thinking")
-2. 调用 skill_view(name="openclaw-behavior-plan")
-3. 生成 execution_plan.md
-4. 等待用户确认
-
-**回退到 L2（分析）**：
-1. 调用 skill_view(name="deep-thinking")
-2. 执行分析并输出结论
-
-⚠️ 回退时在输出中说明：因 agent-pool 不可用，回退到 L3/L2
-
-"""
-
-
-# ============ L4 强制执行指令（旧版，保留兼容） ============
-
-def build_l4_directive(session_id: str = None, decision: Dict[str, Any] = None) -> str:
-    """构建 L4 上下文补充（追踪器创建 + phase_info）
-    
-    Args:
-        session_id: 会话ID（用于追踪）
-        decision: 决策结果（包含原始上下文信息）
-    
-    ⚠️ 关联规则: rules/l4.md（修改时需同步）
-    
-    注意：L4 的执行规则由 l4.md 提供，不再硬编码
-    """
-    # session_id 为空时降级为软提醒
-    if not session_id:
-        logger.warning("[SOUL-ENFORCER] session_id 为空，L4 降级为软提醒")
-        return """【L4 任务 - 软提醒模式】
-
-⚠️ 建议调用 agent-pool 执行：
-- skill_view("planning-with-files")
-- skill_view("agent-pool")
-- delegate_task() 或 agent_pool_client.execute()
-
-（因 session_id 缺失，无法强制追踪）
-"""
-    
-    # 【v3.0 修复】使用 enforcer 统一接口
-    from .enforcer import create_tracker, get_tracker, update_tracker
-    
-    existing = get_tracker(session_id)
-    if existing:
-        existing["task_level"] = "L4"
-        update_tracker(session_id, existing)
-        logger.info(f"[SOUL-ENFORCER] 追踪器已存在，更新等级: {session_id}")
-    else:
-        create_tracker(session_id, "L4")
-    
-    # 合并必需上下文（phase_info）
-    context_parts = []
-    
-    if decision:
-        phase_info = decision.get("phase_info")
-        
-        # 【v3.0 新增】验证和清理 phase_info
-        if phase_info:
-            cleaned_phase_info = _clean_phase_info(phase_info)
-            if cleaned_phase_info:
-                context_parts.append(f"""【当前阶段】
-{cleaned_phase_info}
-
-""")
-    
-    # 返回 phase_info（执行规则由 l4.md 提供，不再硬编码）
-    return "".join(context_parts)
-
-
-def _clean_phase_info(phase_info) -> str:
-    """清理 phase_info 内容
-    
-    Args:
-        phase_info: 原始 phase_info（str 或 dict）
-    
-    Returns:
-        清理后的纯文本描述
-    """
-    import re
-    from .constants import SENSITIVE_PATTERNS, PHASE_INFO_MAX_LENGTH
-    
-    # 类型检查
-    if isinstance(phase_info, str):
-        raw_text = phase_info
-    elif isinstance(phase_info, dict):
-        # 提取关键字段
-        name = phase_info.get("name", "")
-        desc = phase_info.get("description", "")
-        raw_text = f"{name}: {desc}" if name or desc else ""
-    else:
-        logger.warning(f"[SOUL-ENFORCER] phase_info 类型不支持: {type(phase_info)}")
-        return ""
-    
-    # 移除 JSON 格式字符串
-    if raw_text.startswith("{") or raw_text.startswith("["):
-        return ""
-    
-    # 移除敏感信息
-    cleaned = raw_text
-    for pattern in SENSITIVE_PATTERNS:
-        cleaned = re.sub(pattern, '[REDACTED]', cleaned, flags=re.IGNORECASE)
-    
-    # 限制长度
-    if len(cleaned) > PHASE_INFO_MAX_LENGTH:
-        cleaned = cleaned[:PHASE_INFO_MAX_LENGTH] + "..."
-    
-    # 移除多余空白
-    cleaned = " ".join(cleaned.split())
-    
-    return cleaned.strip()
-
-
 # ============ 上下文构建 ============
 
 def build_context(
@@ -329,34 +121,12 @@ def build_context(
     """构建注入上下文 - 包含技能绑定和流程信息"""
     context_parts = []
     
-    # 新增：意图判断约束（在所有内容之前）
-    constraint_section = """【意图判断约束】
-
-✅ 判断依据：用户原始输入
-❌ 禁止依据：记忆内容、历史上下文、推测意图
-
-⚠️ 记忆内容（<memory-context>）仅作背景信息，不参与当前意图判断。
-
-"""
-    context_parts.append(constraint_section)
-    
     # 0. 工作流检测（最高优先级，跳过所有规则）
     workflow_name = decision.get("workflow_name")
-    task_level = decision.get("task_level")
-
-    # 检查工作流任务（优先检查 task_level，其次检查 workflow_name）
-    if task_level == "W" or (workflow_name and workflow_name not in ("false", "null", "", "none")):
-        logger.info(f"[soul] 工作流任务，跳过规则注入: {workflow_name or '未指定'}")
-        return build_workflow_directive(workflow_name or "未指定工作流", session_id)
-    
-    # 【v3.1 修复】L4 不再 early return，走与 L0-L3 相同的路径
-    # L2/L3/L4 注入明确的执行指令
-    if task_level == "L2":
-        context_parts.append(build_l2_directive(session_id))
-    elif task_level == "L3":
-        context_parts.append(build_l3_directive(session_id))
-    elif task_level == "L4":
-        context_parts.append(build_l4_explicit_directive(session_id))
+    # 明确判断：workflow_name 必须是非空字符串且不等于 "false"
+    if workflow_name and workflow_name not in ("false", "null", "", "none"):
+        logger.info(f"[soul] 工作流任务，跳过规则注入: {workflow_name}")
+        return build_workflow_directive(workflow_name, session_id)
     
     # 获取绑定技能和流程信息
     bound_skills = get_bound_skills(task_level)
@@ -389,12 +159,11 @@ def build_context(
         context_parts.append(locked_section)
     
     # 3. 加载规则文件（来自 rules/ 目录）
-    # write_operation 和 skill_usage 常态化注入，不跟任务等级挂钩
     detected_rules = {
-        "write_operation": True,
+        "write_operation": decision.get("write_operation", False),
         "code_guidance": decision.get("code_guidance", False),
         "agent_pool": decision.get("agent_pool", False),
-        "skill_usage": True,
+        "skill_usage": decision.get("skill_usage", False),
         "self_improving": decision.get("self_improving", False),
     }
     rules_content = load_rules(task_level, detected_rules)

@@ -2,11 +2,6 @@
 Soul Context Injector - 拦截逻辑
 
 四层拦截 + 执行认证管理
-
-废弃说明：
-- find_execution_plan() 已移除，L4 验证改为基于技能调用
-- has_execution_auth() 现在支持技能追踪验证（方案3）
-- 文件验证路径已移除，不再检查 execution_plan.md 存在性
 """
 
 import json
@@ -24,6 +19,7 @@ from .constants import (
     PLANNING_FILES,
     CONFIRM_KEYWORDS,
     VIOLATIONS_LOG,
+    EXECUTION_AUTH_FILE,
 )
 from .state import (
     get_active_skill,
@@ -189,32 +185,46 @@ def is_write_operation(tool_name: str, command: str, args: dict = None) -> bool:
     return False
 
 
+# ============ execution_plan 查找 ============
+
+def find_execution_plan() -> Optional[Path]:
+    """查找最新的 execution_plan.md 文件"""
+    all_plans = []
+    
+    # 搜索位置 1: 当前工作目录
+    cwd = Path.cwd()
+    plan_path = cwd / "execution_plan.md"
+    if plan_path.exists():
+        all_plans.append(plan_path)
+    
+    # 搜索位置 2: ~/.hermes/sessions/
+    sessions_dir = Path.home() / ".hermes" / "sessions"
+    if sessions_dir.exists():
+        all_plans.extend(sessions_dir.glob("*/execution_plan.md"))
+    
+    # 搜索位置 3: ~/.hermes/plans/ (planning-with-files 输出目录)
+    plans_dir = Path.home() / ".hermes" / "plans"
+    if plans_dir.exists():
+        all_plans.extend(plans_dir.glob("*/execution_plan.md"))
+    
+    # 搜索位置 4: ~/.hermes/execution_plan.md (根目录)
+    root_plan = Path.home() / ".hermes" / "execution_plan.md"
+    if root_plan.exists():
+        all_plans.append(root_plan)
+    
+    if all_plans:
+        # 返回最新的文件（按修改时间）
+        return max(all_plans, key=lambda p: p.stat().st_mtime)
+    
+    return None
+
+
 # ============ 执行认证管理 ============
 
-def get_auth_file(session_id: str) -> Path:
-    """获取会话专属的认证文件路径
-
-    多会话支持：每个会话有独立的认证文件，避免互相覆盖
-    """
-    auth_dir = Path.home() / ".hermes" / "execution-auth"
-    return auth_dir / f"{session_id}.json"
-
-
-def has_execution_auth(session_id: str, expected_task: str = None) -> bool:
+def has_execution_auth(session_id: str) -> bool:
     """检查是否有有效的执行认证
-
-    Args:
-        session_id: 会话 ID
-        expected_task: 期望的任务描述（用于校验方案内容匹配）
-
-    Returns:
-        True: 有有效认证
-        False: 无认证或认证无效
-
-    验证路径（按优先级）：
-    1. Hermes approval 系统
-    2. 本地认证文件（向后兼容）
-    3. 技能调用追踪（新增）
+    
+    优先使用 Hermes approval 系统，降级到本地文件检查
     """
     # 方案1: 使用 Hermes approval 系统（推荐）
     try:
@@ -225,104 +235,76 @@ def has_execution_auth(session_id: str, expected_task: str = None) -> bool:
             return True
     except Exception as e:
         logger.debug(f"[SOUL] Hermes approval 检查失败，降级到本地: {e}")
-
-    # 方案2: 降级到本地文件检查（多会话支持）
-    auth_file = get_auth_file(session_id)
-    if auth_file.exists():
-        try:
-            data = json.loads(auth_file.read_text())
-
-            # 检查会话（文件名已包含 session_id，双重验证）
-            if data.get("session_id") != session_id:
-                return False
-
-            # 检查过期
-            expires = datetime.datetime.fromisoformat(data["expires_at"])
-            if datetime.datetime.now() > expires:
-                logger.info(f"[SOUL] 执行认证已过期: {session_id}")
-                return False
-
-            logger.debug(f"[SOUL] 执行认证有效 (本地文件): {session_id}")
-            return True
-        except Exception as e:
-            logger.warning(f"[SOUL] 执行认证检查失败: {e}")
-
-    # 方案3: 技能调用追踪（新增）
+    
+    # 方案2: 降级到本地文件检查
+    if not EXECUTION_AUTH_FILE.exists():
+        return False
+    
     try:
-        from .enforcer import get_tracker
-        from .constants import SKILL_BINDINGS, REQUIRED_SKILLS_L4
-
-        tracker = get_tracker(session_id)
-        if tracker:
-            task_level = tracker.get("task_level")
-            called = tracker.get("called_skills", [])
-            executed_by = tracker.get("executed_by", [])
-
-            # L4: 检查技能调用 + 实际执行
-            if task_level == "L4":
-                required = REQUIRED_SKILLS_L4
-                skills_ok = all(s in called for s in required)
-                exec_ok = len(executed_by) > 0
-                if skills_ok and exec_ok:
-                    logger.debug(f"[SOUL] 执行认证有效 (技能追踪): skills={called}, execution={executed_by}")
-                    return True
-
-            # L2/L3: 只检查技能调用
-            elif task_level in ["L2", "L3"]:
-                required = SKILL_BINDINGS.get(task_level, [])
-                if all(s in called for s in required):
-                    logger.debug(f"[SOUL] 执行认证有效 (技能追踪): skills={called}")
-                    return True
+        data = json.loads(EXECUTION_AUTH_FILE.read_text())
+        
+        # 检查会话
+        if data.get("session_id") != session_id:
+            return False
+        
+        # 检查过期
+        expires = datetime.datetime.fromisoformat(data["expires_at"])
+        if datetime.datetime.now() > expires:
+            return False
+        
+        # 检查 execution_plan.md 是否存在
+        plan_path = Path(data.get("execution_plan", ""))
+        if not plan_path.exists():
+            return False
+        
+        logger.debug(f"[SOUL] 执行认证有效 (本地文件): {session_id}")
+        return True
     except Exception as e:
-        logger.debug(f"[SOUL] 技能追踪检查失败: {e}")
+        logger.warning(f"[SOUL] 执行认证检查失败: {e}")
+        return False
 
-    return False
 
-
-def grant_execution_auth(session_id: str, plan_path: Path = None, task_description: str = None):
+def grant_execution_auth(session_id: str, plan_path: Path = None):
     """授予执行认证
-
-    Args:
-        session_id: 会话 ID
-        plan_path: 方案文件路径
-        task_description: 任务描述（用于后续校验）
-
+    
     同时更新 Hermes approval 系统和本地文件
     """
     success = False
-
+    
     # 方案1: 使用 Hermes approval 系统
     try:
         from tools.approval import get_current_session_key, approve_session
         session_key = get_current_session_key()
         approve_session(session_key, "soul_execution_write")
-        logger.info(f"[SOUL] 执行认证已授予 (Hermes approval): {session_id}")
+        logger.info(f"[SOUL] 执行认证已授予 (Hermes approval): {session_key}")
         success = True
     except Exception as e:
         logger.warning(f"[SOUL] Hermes approval 授予失败: {e}")
-
-    # 方案2: 本地文件（多会话支持）
+    
+    # 方案2: 本地文件（作为备份）
     try:
-        auth_file = get_auth_file(session_id)
-        auth_file.parent.mkdir(parents=True, exist_ok=True)
-
+        EXECUTION_AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        
         now = datetime.datetime.now()
         expires = now + datetime.timedelta(hours=1)
-
+        
+        # 如果没有 plan_path，尝试查找
+        if not plan_path:
+            plan_path = find_execution_plan()
+        
         data = {
             "session_id": session_id,
             "created_at": now.isoformat(),
             "expires_at": expires.isoformat(),
-            "execution_plan": str(plan_path) if plan_path else "",
-            "task_description": task_description or ""
+            "execution_plan": str(plan_path) if plan_path else ""
         }
-
-        auth_file.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+        
+        EXECUTION_AUTH_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
         logger.info(f"[SOUL] 执行认证已授予 (本地文件): session={session_id}, expires={expires}")
         success = True
     except Exception as e:
         logger.error(f"[SOUL] 授予执行认证失败 (本地文件): {e}")
-
+    
     return success
 
 

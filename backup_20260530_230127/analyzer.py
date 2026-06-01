@@ -270,8 +270,10 @@ class LocalRuleClient:
                 has_new_task = any(kw in lower for kw in new_task_keywords)
                 
                 if not has_new_task:
-                    # 确认词但不是新任务 → 返回 L4，由大模型从上下文判断
-                    return "L4"
+                    # 确认词但不是新任务 → 可能是L4，检查方案文件
+                    plan_path = find_execution_plan()
+                    if plan_path and plan_path.exists():
+                        return "L4"
             
             # 继续到下面的关键词判断逻辑（不再直接return "L3"）
         
