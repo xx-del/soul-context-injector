@@ -65,13 +65,19 @@ def pre_llm_call_hook(
 ) -> Optional[Dict[str, str]]:
     """
     pre_llm_call Hook - 在每轮对话前注入上下文
-    
+
     流程：
     0. 子 agent 放行 - 跳过上下文注入
     1. 任务分析（工作流本地检测 → Ollama → 本地降级）
     2. L4 处理：授予执行认证
     3. 上下文注入
     """
+    # Periodic cleanup (1% probability to avoid overhead)
+    import random
+    if random.random() < 0.01:
+        from .enforcer import cleanup_expired_trackers
+        cleanup_expired_trackers()
+
     if not user_message or not user_message.strip():
         return None
     
