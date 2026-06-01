@@ -102,11 +102,13 @@ def pre_llm_call_hook(
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
         
-        # 4. 创建技能追踪（所有等级）
-        # L0/L1: 简化追踪器，调用任意技能后获得认证
-        # L2/L3/L4: 完整追踪器，需调用必须技能
-        from .enforcer import create_tracker
-        create_tracker(session_id, task_level)
+        # 4. 创建技能追踪（L2/L3/L4 任务）
+        # L0/L1 不创建追踪器，符合规则约束：
+        # - L0: 不调用工具，不执行命令
+        # - L1: 不涉及写入操作
+        if task_level in ["L2", "L3", "L4"]:
+            from .enforcer import create_tracker
+            create_tracker(session_id, task_level)
         
         if context:
             log_msg = f"[soul] 注入上下文 {len(context)} 字符，任务等级: {task_level}"

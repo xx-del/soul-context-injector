@@ -273,12 +273,6 @@ def has_execution_auth(session_id: str, expected_task: str = None) -> bool:
                 if all(s in called for s in required):
                     logger.debug(f"[SOUL] 执行认证有效 (技能追踪): skills={called}")
                     return True
-
-            # L0/L1: 调用任意技能后认证（简化认证）
-            elif task_level in ["L0", "L1"]:
-                if len(called) > 0:  # 调用了任意技能
-                    logger.debug(f"[SOUL] 执行认证有效 (L0/L1技能调用): skills={called}")
-                    return True
     except Exception as e:
         logger.debug(f"[SOUL] 技能追踪检查失败: {e}")
 

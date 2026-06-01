@@ -279,6 +279,12 @@ class LocalRuleClient:
         exec_kws = ["创建", "实施", "执行", "部署", "安装", "卸载", "修改", "删除", "写入", "create", "implement", "deploy"]
         if any(kw in lower for kw in exec_kws):
             return "L3"
+
+        # 2.5. 写入操作检测 → 至少L3（规则约束：L0/L1不涉及写入）
+        # L0规则: 不调用工具，不执行命令
+        # L1规则: 不涉及写入操作
+        if self._detect_write(lower):
+            return "L3"
         
         # 3. 规划类关键词 → L2（分析规划，非执行）
         planning_kws = ["制定方案", "规划", "分析", "评估", "设计", "生成计划", "写方案", "帮我做"]
