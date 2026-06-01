@@ -1,7 +1,7 @@
 """
-Soul Context Injector - Hermes Plugin v5.6
+Soul Context Injector - Hermes Plugin v5.7
 
-任务等级体系 + 工作流本地检测 + 技能绑定 + 智能分析 + 子 agent 放行 + 工作流强制执行
+任务等级体系 + 工作流精确匹配 + 技能绑定 + 智能分析 + 子 agent 放行 + 工作流强制执行
 - L0: 微任务（直接回答）
 - L1: 简单查询 / 工作流执行（直接执行）
 - L2: 思考任务（deep-thinking）
@@ -9,21 +9,17 @@ Soul Context Injector - Hermes Plugin v5.6
 - L4: 方案执行（planning-with-files + agent-pool）
 - W: 工作流任务（workflow-manager 强制执行）
 
+v5.7 更新：
+- 修复工作流检测模糊匹配问题
+- 移除纯模糊匹配规则 (Rule 4)
+- Rule 2/3 要求完整工作流名称
+- 修复: 'home' 错误匹配 'home漏扫'
+
 v5.6 更新：
 - 工作流强制执行模式：增强 build_workflow_directive() 注入强制约束
 - 验证清单机制：输出前必须完成技能调用验证
 - enforcer 支持 W 等级：技能追踪 + 输出拦截
 - 禁止行为明确化：跳过步骤、未调用技能、使用历史数据
-
-v5.5 更新：
-- 新增工作流本地检测（精确匹配，不调用 Ollama）
-- 工作流任务跳过规则注入，直接注入执行指令
-- 删除确认词硬编码检测，改为统一由 analyze_task 判断
-- L4 判断后才授予执行认证
-
-v5.4 更新：
-- 新增 Layer 0: 子 agent 放行（通过 parent_session_id 检测）
-- 子 agent 继承父 agent 权限，跳过所有拦截
 """
 
 import logging
@@ -266,4 +262,4 @@ def register(ctx):
     ctx.register_hook("pre_llm_call", pre_llm_call_hook)
     ctx.register_hook("pre_tool_call", pre_tool_call_hook)
     ctx.register_hook("post_tool_call", post_tool_call_hook)
-    logger.info("[soul-context-injector] 插件已加载 v5.5")
+    logger.info("[soul-context-injector] 插件已加载 v5.7")

@@ -84,66 +84,33 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                     "self_improving": False,
                 }
         
-        # 2. 包含"工作流"三字 → 直接返回 W
+        # 2. 包含"工作流"三字 → 必须包含完整工作流名称
         if "工作流" in user_message:
-            # 尝试匹配具体工作流名称（用于日志记录）
             matched_name = None
             for name in workflow_names:
                 if name.lower() in msg_lower:
                     matched_name = name
                     break
-            if not matched_name:
-                for tag in workflow_tags:
-                    if tag.lower() in msg_lower:
-                        for wf in index.get('workflows', []):
-                            if wf.get('status') == 'active' and tag in wf.get('tags', []):
-                                matched_name = wf['name']
-                                break
-                        if matched_name:
-                            break
-            
-            logger.info(f"[soul] 工作流本地检测命中（包含'工作流'）: {matched_name or '未匹配具体工作流'}")
-            return {
-                "success": True,
-                "task_level": "W",
-                "workflow_name": matched_name,
-                "write_operation": False,
-                "code_guidance": False,
-                "agent_pool": False,
-                "skill_usage": True,
-                "self_improving": False,
-            }
-        
-        # 3. 包含"流程"二字 → 直接返回 W
-        if "流程" in user_message:
-            # 尝试匹配具体工作流名称（用于日志记录）
-            matched_name = None
-            for name in workflow_names:
-                if name.lower() in msg_lower:
-                    matched_name = name
-                    break
-            
-            logger.info(f"[soul] 工作流本地检测命中（包含'流程'）: {matched_name or '未匹配具体工作流'}")
-            return {
-                "success": True,
-                "task_level": "W",
-                "workflow_name": matched_name,
-                "write_operation": False,
-                "code_guidance": False,
-                "agent_pool": False,
-                "skill_usage": True,
-                "self_improving": False,
-            }
-        
-        # 4. 模糊匹配：用户消息包含工作流名称或标签
-        # 匹配优先级：名称 > 标签
-        for name in workflow_names:
-            if name.lower() in msg_lower:
-                logger.info(f"[soul] 工作流本地检测命中（模糊匹配名称）: {name}")
+
+            if matched_name:
+                logger.info(f"[soul] 工作流本地检测命中（包含'工作流'+完整名称）: {matched_name}")
                 return {
                     "success": True,
                     "task_level": "W",
-                    "workflow_name": name,
+                    "workflow_name": matched_name,
+                    "write_operation": False,
+                    "code_guidance": False,
+                    "agent_pool": False,
+                    "skill_usage": True,
+                    "self_improving": False,
+                }
+            else:
+                # 包含"工作流"但未匹配到完整名称 → 返回 W 但不指定具体工作流
+                logger.info(f"[soul] 工作流本地检测命中（包含'工作流'但未匹配具体名称）")
+                return {
+                    "success": True,
+                    "task_level": "W",
+                    "workflow_name": None,
                     "write_operation": False,
                     "code_guidance": False,
                     "agent_pool": False,
@@ -151,23 +118,34 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                     "self_improving": False,
                 }
         
-        for tag in workflow_tags:
-            if tag.lower() in msg_lower:
-                # 找到对应的第一个工作流名称
-                for wf in index.get('workflows', []):
-                    if wf.get('status') == 'active' and tag in wf.get('tags', []):
-                        logger.info(f"[soul] 工作流本地检测命中（模糊匹配标签）: {wf['name']}")
-                        return {
-                            "success": True,
-                            "task_level": "W",
-                            "workflow_name": wf['name'],
-                            "write_operation": False,
-                            "code_guidance": False,
-                            "agent_pool": False,
-                            "skill_usage": True,
-                            "self_improving": False,
-                        }
-        
+        # 3. 包含"流程"二字 → 必须包含完整工作流名称
+        if "流程" in user_message:
+            matched_name = None
+            for name in workflow_names:
+                if name.lower() in msg_lower:
+                    matched_name = name
+                    break
+
+            if matched_name:
+                logger.info(f"[soul] 工作流本地检测命中（包含'流程'+完整名称）: {matched_name}")
+                return {
+                    "success": True,
+                    "task_level": "W",
+                    "workflow_name": matched_name,
+                    "write_operation": False,
+                    "code_guidance": False,
+                    "agent_pool": False,
+                    "skill_usage": True,
+                    "self_improving": False,
+                }
+
+        # 4. 移除纯模糊匹配规则（v5.7.0 修复）
+        # 原代码问题：
+        #   for name in workflow_names:
+        #       if name.lower() in msg_lower:  # ❌ "home" 会匹配 "home漏扫"
+        # 修复：完全移除此规则，只保留以上精确匹配
+        # 理由：短工作流名称会错误匹配任何包含它的用户消息
+
         return None
     
     except Exception as e:
