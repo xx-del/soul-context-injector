@@ -44,7 +44,7 @@ from .interceptor import (
     is_write_operation,
     has_execution_auth,
     grant_execution_auth,
-    find_execution_plan,
+    get_auth_file,
     log_violation,
     build_error_message,
     check_workflow_completion,
@@ -88,12 +88,10 @@ def pre_llm_call_hook(
         task_level = decision.get("task_level", "L1")
         workflow_name = decision.get("workflow_name")
         
-        # 2. L4 处理：授予执行认证
+        # 2. L4 处理：大模型自主判断是否执行方案
+        # 方案路径由大模型从上下文中判断，不再通过代码查找
         if task_level == "L4" and not workflow_name:
-            plan_path = find_execution_plan()
-            if plan_path:
-                grant_execution_auth(session_id, plan_path)
-                logger.info(f"[SOUL] L4 任务，授予执行认证: {plan_path}")
+            logger.info(f"[SOUL] L4 任务，等待大模型判断方案")
         
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)

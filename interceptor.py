@@ -19,7 +19,6 @@ from .constants import (
     PLANNING_FILES,
     CONFIRM_KEYWORDS,
     VIOLATIONS_LOG,
-    EXECUTION_AUTH_FILE,
 )
 from .state import (
     get_active_skill,
@@ -185,46 +184,27 @@ def is_write_operation(tool_name: str, command: str, args: dict = None) -> bool:
     return False
 
 
-# ============ execution_plan 查找 ============
-
-def find_execution_plan() -> Optional[Path]:
-    """查找最新的 execution_plan.md 文件"""
-    all_plans = []
-    
-    # 搜索位置 1: 当前工作目录
-    cwd = Path.cwd()
-    plan_path = cwd / "execution_plan.md"
-    if plan_path.exists():
-        all_plans.append(plan_path)
-    
-    # 搜索位置 2: ~/.hermes/sessions/
-    sessions_dir = Path.home() / ".hermes" / "sessions"
-    if sessions_dir.exists():
-        all_plans.extend(sessions_dir.glob("*/execution_plan.md"))
-    
-    # 搜索位置 3: ~/.hermes/plans/ (planning-with-files 输出目录)
-    plans_dir = Path.home() / ".hermes" / "plans"
-    if plans_dir.exists():
-        all_plans.extend(plans_dir.glob("*/execution_plan.md"))
-    
-    # 搜索位置 4: ~/.hermes/execution_plan.md (根目录)
-    root_plan = Path.home() / ".hermes" / "execution_plan.md"
-    if root_plan.exists():
-        all_plans.append(root_plan)
-    
-    if all_plans:
-        # 返回最新的文件（按修改时间）
-        return max(all_plans, key=lambda p: p.stat().st_mtime)
-    
-    return None
-
-
 # ============ 执行认证管理 ============
 
-def has_execution_auth(session_id: str) -> bool:
+def get_auth_file(session_id: str) -> Path:
+    """获取会话专属的认证文件路径
+
+    多会话支持：每个会话有独立的认证文件，避免互相覆盖
+    """
+    auth_dir = Path.home() / ".hermes" / "execution-auth"
+    return auth_dir / f"{session_id}.json"
+
+
+def has_execution_auth(session_id: str, expected_task: str = None) -> bool:
     """检查是否有有效的执行认证
-    
-    优先使用 Hermes approval 系统，降级到本地文件检查
+
+    Args:
+        session_id: 会话 ID
+        expected_task: 期望的任务描述（用于校验方案内容匹配）
+
+    Returns:
+        True: 有有效认证
+        False: 无认证或认证无效
     """
     # 方案1: 使用 Hermes approval 系统（推荐）
     try:
@@ -235,28 +215,46 @@ def has_execution_auth(session_id: str) -> bool:
             return True
     except Exception as e:
         logger.debug(f"[SOUL] Hermes approval 检查失败，降级到本地: {e}")
-    
-    # 方案2: 降级到本地文件检查
-    if not EXECUTION_AUTH_FILE.exists():
+
+    # 方案2: 降级到本地文件检查（多会话支持）
+    auth_file = get_auth_file(session_id)
+    if not auth_file.exists():
         return False
-    
+
     try:
-        data = json.loads(EXECUTION_AUTH_FILE.read_text())
-        
-        # 检查会话
+        data = json.loads(auth_file.read_text())
+
+        # 检查会话（文件名已包含 session_id，双重验证）
         if data.get("session_id") != session_id:
             return False
-        
+
         # 检查过期
         expires = datetime.datetime.fromisoformat(data["expires_at"])
         if datetime.datetime.now() > expires:
+            logger.info(f"[SOUL] 执行认证已过期: {session_id}")
             return False
-        
+
         # 检查 execution_plan.md 是否存在
         plan_path = Path(data.get("execution_plan", ""))
         if not plan_path.exists():
+            logger.warning(f"[SOUL] 方案文件不存在: {plan_path}")
             return False
-        
+
+        # 【新增】校验方案内容与当前任务匹配
+        if expected_task:
+            try:
+                plan_content = plan_path.read_text(encoding="utf-8")
+                # 简单匹配：检查任务关键词是否在方案中
+                task_keywords = expected_task.lower().split()[:5]  # 取前5个关键词
+                matches = sum(1 for kw in task_keywords if kw in plan_content.lower())
+                if matches < 2:  # 至少匹配2个关键词
+                    logger.warning(f"[SOUL] 方案内容与任务不匹配: expected={expected_task[:50]}, matches={matches}")
+                    return False
+                logger.debug(f"[SOUL] 方案内容校验通过: matches={matches}")
+            except Exception as e:
+                logger.warning(f"[SOUL] 方案内容校验失败: {e}")
+                # 校验失败不阻止执行，只记录警告
+
         logger.debug(f"[SOUL] 执行认证有效 (本地文件): {session_id}")
         return True
     except Exception as e:
@@ -264,47 +262,50 @@ def has_execution_auth(session_id: str) -> bool:
         return False
 
 
-def grant_execution_auth(session_id: str, plan_path: Path = None):
+def grant_execution_auth(session_id: str, plan_path: Path = None, task_description: str = None):
     """授予执行认证
-    
+
+    Args:
+        session_id: 会话 ID
+        plan_path: 方案文件路径
+        task_description: 任务描述（用于后续校验）
+
     同时更新 Hermes approval 系统和本地文件
     """
     success = False
-    
+
     # 方案1: 使用 Hermes approval 系统
     try:
         from tools.approval import get_current_session_key, approve_session
         session_key = get_current_session_key()
         approve_session(session_key, "soul_execution_write")
-        logger.info(f"[SOUL] 执行认证已授予 (Hermes approval): {session_key}")
+        logger.info(f"[SOUL] 执行认证已授予 (Hermes approval): {session_id}")
         success = True
     except Exception as e:
         logger.warning(f"[SOUL] Hermes approval 授予失败: {e}")
-    
-    # 方案2: 本地文件（作为备份）
+
+    # 方案2: 本地文件（多会话支持）
     try:
-        EXECUTION_AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
-        
+        auth_file = get_auth_file(session_id)
+        auth_file.parent.mkdir(parents=True, exist_ok=True)
+
         now = datetime.datetime.now()
         expires = now + datetime.timedelta(hours=1)
-        
-        # 如果没有 plan_path，尝试查找
-        if not plan_path:
-            plan_path = find_execution_plan()
-        
+
         data = {
             "session_id": session_id,
             "created_at": now.isoformat(),
             "expires_at": expires.isoformat(),
-            "execution_plan": str(plan_path) if plan_path else ""
+            "execution_plan": str(plan_path) if plan_path else "",
+            "task_description": task_description or ""
         }
-        
-        EXECUTION_AUTH_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+        auth_file.write_text(json.dumps(data, ensure_ascii=False, indent=2))
         logger.info(f"[SOUL] 执行认证已授予 (本地文件): session={session_id}, expires={expires}")
         success = True
     except Exception as e:
         logger.error(f"[SOUL] 授予执行认证失败 (本地文件): {e}")
-    
+
     return success
 
 
