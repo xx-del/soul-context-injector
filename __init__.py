@@ -1,7 +1,7 @@
 """
-Soul Context Injector - Hermes Plugin v5.7
+Soul Context Injector - Hermes Plugin v5.8
 
-任务等级体系 + 工作流精确匹配 + 技能绑定 + 智能分析 + 子 agent 放行 + 工作流强制执行
+任务等级体系 + 工作流精确匹配 + 技能绑定 + 智能分析 + 子 agent 放行 + 技能强制执行
 - L0: 微任务（直接回答）
 - L1: 简单查询 / 工作流执行（直接执行）
 - L2: 思考任务（deep-thinking）
@@ -9,17 +9,17 @@ Soul Context Injector - Hermes Plugin v5.7
 - L4: 方案执行（planning-with-files + agent-pool）
 - W: 工作流任务（workflow-manager 强制执行）
 
+v5.8 更新：
+- 移除写入操作拦截（Layer 3）
+- 理由：用户意图 "只拦截不使用技能 不需要拦截写入等操作"
+- 技能强制在输出时执行（OUTPUT_TOOLS 检查）
+- 修复：LLM 可以先调用技能，再执行写入，不会被提前拦截
+
 v5.7 更新：
 - 修复工作流检测模糊匹配问题
 - 移除纯模糊匹配规则 (Rule 4)
 - Rule 2/3 要求完整工作流名称
 - 修复: 'home' 错误匹配 'home漏扫'
-
-v5.6 更新：
-- 工作流强制执行模式：增强 build_workflow_directive() 注入强制约束
-- 验证清单机制：输出前必须完成技能调用验证
-- enforcer 支持 W 等级：技能追踪 + 输出拦截
-- 禁止行为明确化：跳过步骤、未调用技能、使用历史数据
 """
 
 import logging
@@ -127,15 +127,18 @@ def pre_tool_call_hook(
     **kwargs
 ) -> Optional[Dict[str, str]]:
     """
-    pre_tool_call Hook - 七层拦截 + 技能白名单 + 子 agent 放行
-    
-    Layer 0: 强制执行检查 - 技能调用追踪（新增）
+    pre_tool_call Hook - 六层拦截 + 技能白名单 + 子 agent 放行
+
+    Layer 0: 强制执行检查 - 技能调用追踪（核心）
     Layer 1: 子 agent 放行 - 继承父 agent 权限
     Layer 2: 技能白名单 - 最优先放行
     Layer 3: 破坏性命令 - 永久禁止
-    Layer 4: 增删改操作 - 需要执行认证
-    Layer 5: 工作流完整性 - 检查是否完成所有步骤
-    Layer 6: 其他 - 直接放行
+    Layer 4: 工作流完整性 - 检查是否完成所有步骤
+    Layer 5: 其他 - 直接放行
+
+    v5.8.0 变更：
+    - 移除写入操作拦截（原 Layer 3）
+    - 技能强制在输出时执行，不提前拦截写入
     """
     
     # Layer 0: 强制执行检查（新增）
@@ -225,23 +228,19 @@ def pre_tool_call_hook(
         log_violation("dangerous", tool_name, args, task_id)
         logger.warning(f"[SOUL] 拦截破坏性命令: {command[:50]}")
         return {"action": "block", "message": build_error_message("dangerous", tool_name, args)}
-    
-    # Layer 3: 增删改操作 - 检查执行认证
-    if is_write_operation(tool_name, command, args):
-        if not has_execution_auth(session_id):
-            log_violation("no_auth", tool_name, args, task_id)
-            logger.warning(f"[SOUL] 拦截未认证操作: {tool_name}")
-            return {"action": "block", "message": build_error_message("no_auth", tool_name, args)}
-    
-    # Layer 4: 工作流完整性检查 - 拦截未完成的输出
+
+    # Layer 3: 工作流完整性检查 - 拦截未完成的输出
+    # 注意：写入操作拦截已移除（v5.8.0）
+    # 理由：用户意图 "只拦截不使用技能 不需要拦截写入等操作"
+    # 技能强制在输出时执行（OUTPUT_TOOLS 检查）
     if tool_name == "send_message":
         error = check_workflow_completion(session_id, tool_name)
         if error:
             log_violation("incomplete_workflow", tool_name, args, task_id)
             logger.warning(f"[SOUL] 拦截不完整工作流输出")
             return {"action": "block", "message": error}
-    
-    # Layer 5: 其他 - 直接放行
+
+    # Layer 4: 其他 - 直接放行
     return None
 
 
@@ -262,4 +261,4 @@ def register(ctx):
     ctx.register_hook("pre_llm_call", pre_llm_call_hook)
     ctx.register_hook("pre_tool_call", pre_tool_call_hook)
     ctx.register_hook("post_tool_call", post_tool_call_hook)
-    logger.info("[soul-context-injector] 插件已加载 v5.7")
+    logger.info("[soul-context-injector] 插件已加载 v5.8")

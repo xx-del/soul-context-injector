@@ -1,13 +1,13 @@
 name: soul-context-injector
-version: "5.7.0"
+version: "5.8.0"
 description: |
   任务等级体系 + 工作流精确匹配 + 技能绑定 + 智能分析（L0-L4）
 
-  v5.7.0 更新：
-  - 修复工作流检测模糊匹配问题
-  - 移除纯模糊匹配规则 (Rule 4)
-  - Rule 2/3 要求完整工作流名称
-  - 修复: 'home' 错误匹配 'home漏扫'
+  v5.8.0 更新：
+  - 移除写入操作拦截（原 Layer 3）
+  - 理由：用户意图 "只拦截不使用技能 不需要拦截写入等操作"
+  - 技能强制在输出时执行（OUTPUT_TOOLS 检查）
+  - 修复：LLM 可以先调用技能，再执行写入，不会被提前拦截
 author: OpenClaw Team
 
 # 插件类型
