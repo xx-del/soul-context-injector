@@ -118,6 +118,8 @@ PLANNING_FILES = [
 # 技能绑定映射
 SKILL_BINDINGS = {
     "W": ["workflow-manager"],  # 工作流任务 - 硬编码绑定
+    "L0": [],  # 微任务 - 无强制技能，调用任意技能后认证
+    "L1": [],  # 简单查询 - 无强制技能，调用任意技能后认证
     "L2": ["deep-thinking"],
     "L3": ["deep-thinking", "openclaw-behavior-plan"],
     "L4": ["planning-with-files", "agent-pool"],
