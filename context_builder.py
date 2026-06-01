@@ -219,62 +219,6 @@ def build_l4_explicit_directive(session_id: str) -> str:
 """
 
 
-# ============ L4 强制执行指令（旧版，保留兼容） ============
-
-def build_l4_directive(session_id: str = None, decision: Dict[str, Any] = None) -> str:
-    """构建 L4 上下文补充（追踪器创建 + phase_info）
-    
-    Args:
-        session_id: 会话ID（用于追踪）
-        decision: 决策结果（包含原始上下文信息）
-    
-    ⚠️ 关联规则: rules/l4.md（修改时需同步）
-    
-    注意：L4 的执行规则由 l4.md 提供，不再硬编码
-    """
-    # session_id 为空时降级为软提醒
-    if not session_id:
-        logger.warning("[SOUL-ENFORCER] session_id 为空，L4 降级为软提醒")
-        return """【L4 任务 - 软提醒模式】
-
-⚠️ 建议调用 agent-pool 执行：
-- skill_view("planning-with-files")
-- skill_view("agent-pool")
-- delegate_task() 或 agent_pool_client.execute()
-
-（因 session_id 缺失，无法强制追踪）
-"""
-    
-    # 【v3.0 修复】使用 enforcer 统一接口
-    from .enforcer import create_tracker, get_tracker, update_tracker
-    
-    existing = get_tracker(session_id)
-    if existing:
-        existing["task_level"] = "L4"
-        update_tracker(session_id, existing)
-        logger.info(f"[SOUL-ENFORCER] 追踪器已存在，更新等级: {session_id}")
-    else:
-        create_tracker(session_id, "L4")
-    
-    # 合并必需上下文（phase_info）
-    context_parts = []
-    
-    if decision:
-        phase_info = decision.get("phase_info")
-        
-        # 【v3.0 新增】验证和清理 phase_info
-        if phase_info:
-            cleaned_phase_info = _clean_phase_info(phase_info)
-            if cleaned_phase_info:
-                context_parts.append(f"""【当前阶段】
-{cleaned_phase_info}
-
-""")
-    
-    # 返回 phase_info（执行规则由 l4.md 提供，不再硬编码）
-    return "".join(context_parts)
-
-
 def _clean_phase_info(phase_info) -> str:
     """清理 phase_info 内容
     
