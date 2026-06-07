@@ -1,13 +1,27 @@
 """
-Soul Context Injector - Hermes Plugin v5.8
+Soul Context Injector - Hermes Plugin v5.9.1
 
-任务等级体系 + 工作流精确匹配 + 技能绑定 + 智能分析 + 子 agent 放行 + 技能强制执行
+四层拦截体系（简化版）：
+- Layer 0: 子 agent 放行（继承父 agent 权限）
+- Layer 1: 技能白名单放行
+- Layer 2: 破坏性命令拦截
+- Layer 3: 工作流完整性检查
+
+任务等级体系：
 - L0: 微任务（直接回答）
 - L1: 简单查询 / 工作流执行（直接执行）
 - L2: 思考任务（deep-thinking）
 - L3: 方案生成（deep-thinking + openclaw-behavior-plan）
 - L4: 方案执行（planning-with-files + agent-pool）
 - W: 工作流任务（workflow-manager 强制执行）
+
+v5.9.1 更新：
+- 修复插件加载失败：移除已废弃函数导入
+- 移除 `has_execution_auth()` 调用
+- 移除 `grant_execution_auth()` 调用
+- 移除 `find_execution_plan()` 调用
+- 移除 Layer 3 写操作拦截（写入不再需要认证）
+- 参考：interceptor.py v5.8.0 已移除这些函数
 
 v5.8 更新：
 - 移除写入操作拦截（Layer 3）
@@ -37,7 +51,6 @@ from .analyzer import analyze_task
 from .context_builder import build_context
 from .interceptor import (
     is_dangerous_command,
-    grant_execution_auth,
     log_violation,
     build_error_message,
     check_workflow_completion,
@@ -58,19 +71,13 @@ def pre_llm_call_hook(
 ) -> Optional[Dict[str, str]]:
     """
     pre_llm_call Hook - 在每轮对话前注入上下文
-
+    
     流程：
     0. 子 agent 放行 - 跳过上下文注入
     1. 任务分析（工作流本地检测 → Ollama → 本地降级）
     2. L4 处理：授予执行认证
     3. 上下文注入
     """
-    # Periodic cleanup (1% probability to avoid overhead)
-    import random
-    if random.random() < 0.01:
-        from .enforcer import cleanup_expired_trackers
-        cleanup_expired_trackers()
-
     if not user_message or not user_message.strip():
         return None
     
@@ -96,9 +103,6 @@ def pre_llm_call_hook(
         context = build_context(task_level, decision, user_message, session_id)
         
         # 4. 创建技能追踪（L2/L3/L4 任务）
-        # L0/L1 不创建追踪器，符合规则约束：
-        # - L0: 不调用工具，不执行命令
-        # - L1: 不涉及写入操作
         if task_level in ["L2", "L3", "L4"]:
             from .enforcer import create_tracker
             create_tracker(session_id, task_level)
@@ -124,22 +128,19 @@ def pre_tool_call_hook(
     **kwargs
 ) -> Optional[Dict[str, str]]:
     """
-    pre_tool_call Hook - 六层拦截 + 技能白名单 + 子 agent 放行
-
-    Layer 0: 强制执行检查 - 技能调用追踪（核心）
+    pre_tool_call Hook - 七层拦截 + 技能白名单 + 子 agent 放行
+    
+    Layer 0: 强制执行检查 - 技能调用追踪（新增）
     Layer 1: 子 agent 放行 - 继承父 agent 权限
     Layer 2: 技能白名单 - 最优先放行
     Layer 3: 破坏性命令 - 永久禁止
-    Layer 4: 工作流完整性 - 检查是否完成所有步骤
-    Layer 5: 其他 - 直接放行
-
-    v5.8.0 变更：
-    - 移除写入操作拦截（原 Layer 3）
-    - 技能强制在输出时执行，不提前拦截写入
+    Layer 4: 增删改操作 - 需要执行认证
+    Layer 5: 工作流完整性 - 检查是否完成所有步骤
+    Layer 6: 其他 - 直接放行
     """
     
     # Layer 0: 强制执行检查（新增）
-    from .enforcer import should_enforce, check_required_skills, track_skill_call, get_tracker
+    from .enforcer import should_enforce, check_required_skills, track_skill_call
     
     enforce = should_enforce(session_id)
     logger.info(f"[SOUL] should_enforce({session_id}) = {enforce}, tool={tool_name}")
@@ -174,23 +175,7 @@ def pre_tool_call_hook(
             code = args.get("code", "")
             if "agent_pool_client" in code or "Orchestrator" in code:
                 track_execution(session_id, EXECUTION_TYPES["PYTHON_API"], tool_name)
-
-        # 【v3.0 新增】技能验证后自动授予认证
-        tracker = get_tracker(session_id)
-        if tracker:
-            task_level = tracker.get("task_level")
-            if task_level == "L4":
-                from .interceptor import grant_execution_auth
-                from .constants import REQUIRED_SKILLS_L4
-
-                called = tracker.get("called_skills", [])
-                executed_by = tracker.get("executed_by", [])
-
-                # 技能调用完成 + 实际执行发生 → 授予认证
-                if all(s in called for s in REQUIRED_SKILLS_L4) and executed_by:
-                    grant_execution_auth(session_id, task_description="L4 execution verified")
-                    logger.info(f"[SOUL] L4 执行认证授予: skills={called}, execution={executed_by}")
-
+        
         # 输出拦截（所有输出类工具）
         from .constants import OUTPUT_TOOLS
 
@@ -198,7 +183,7 @@ def pre_tool_call_hook(
             all_called, error = check_required_skills(session_id)
             if not all_called:
                 log_violation("missing_required_skill", tool_name, args, task_id)
-                return {"action": "block", "message": error}
+                return {"error": error}
     
     # Layer 1: 子 agent 放行 - 继承父 agent 权限
     if is_subagent(session_id):
@@ -224,20 +209,17 @@ def pre_tool_call_hook(
     if tool_name == "terminal" and is_dangerous_command(command):
         log_violation("dangerous", tool_name, args, task_id)
         logger.warning(f"[SOUL] 拦截破坏性命令: {command[:50]}")
-        return {"action": "block", "message": build_error_message("dangerous", tool_name, args)}
-
+        return {"error": build_error_message("dangerous", tool_name, args)}
+    
     # Layer 3: 工作流完整性检查 - 拦截未完成的输出
-    # 注意：写入操作拦截已移除（v5.8.0）
-    # 理由：用户意图 "只拦截不使用技能 不需要拦截写入等操作"
-    # 技能强制在输出时执行（OUTPUT_TOOLS 检查）
     if tool_name == "send_message":
         error = check_workflow_completion(session_id, tool_name)
         if error:
             log_violation("incomplete_workflow", tool_name, args, task_id)
             logger.warning(f"[SOUL] 拦截不完整工作流输出")
-            return {"action": "block", "message": error}
-
-    # Layer 4: 其他 - 直接放行
+            return {"error": error}
+    
+    # Layer 5: 其他 - 直接放行
     return None
 
 
@@ -258,4 +240,4 @@ def register(ctx):
     ctx.register_hook("pre_llm_call", pre_llm_call_hook)
     ctx.register_hook("pre_tool_call", pre_tool_call_hook)
     ctx.register_hook("post_tool_call", post_tool_call_hook)
-    logger.info("[soul-context-injector] 插件已加载 v5.8")
+    logger.info("[soul-context-injector] 插件已加载 v5.5")
