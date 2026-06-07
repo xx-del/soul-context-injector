@@ -67,6 +67,48 @@ def file_lock(file_path: Path, mode: str = "r"):
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # 释放锁
 
 
+def _check_completion(tracker: Dict) -> bool:
+    """检查任务是否完成（内部函数）
+
+    Args:
+        tracker: 追踪器数据
+
+    Returns:
+        True 如果所有必需技能已调用
+    """
+    required = tracker.get("current", {}).get("required_skills", [])
+    called = tracker.get("current", {}).get("called_skills", [])
+    return all(s in called for s in required)
+
+
+def migrate_tracker(old_tracker: Dict) -> Dict:
+    """迁移旧格式追踪器到新格式
+
+    Args:
+        old_tracker: 旧格式追踪器数据
+
+    Returns:
+        新格式追踪器数据
+    """
+    now = datetime.datetime.now().isoformat()
+    return {
+        "session_id": old_tracker.get("session_id"),
+        "task_level": old_tracker.get("task_level"),
+        "created_at": old_tracker.get("created_at", now),
+        "updated_at": old_tracker.get("updated_at", now),
+        "current": {
+            "required_skills": old_tracker.get("required_skills", []),
+            "called_skills": old_tracker.get("called_skills", [])
+        },
+        "history": [],
+        "metadata": {
+            "total_calls": len(old_tracker.get("called_skills", [])),
+            "level_transitions": 0,
+            "last_skill_at": None
+        }
+    }
+
+
 def create_tracker(session_id: str, task_level: str) -> Path:
     """创建技能追踪文件"""
     TRACKING_DIR.mkdir(parents=True, exist_ok=True)
