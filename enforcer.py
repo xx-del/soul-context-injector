@@ -210,13 +210,41 @@ def create_tracker(session_id: str, task_level: str) -> Path:
 
 
 def get_tracker(session_id: str) -> Optional[Dict[str, Any]]:
-    """获取技能追踪数据"""
+    """获取技能追踪数据（自动迁移旧格式）
+
+    自动检测并迁移旧格式追踪器到新格式。
+
+    Args:
+        session_id: 会话ID
+
+    Returns:
+        追踪器数据（新格式），或 None 如果不存在
+    """
     tracker_file = TRACKING_DIR / f"{session_id}.json"
     if not tracker_file.exists():
         return None
-    
+
     try:
-        return json.loads(tracker_file.read_text())
+        with file_lock(tracker_file, "r") as f:
+            tracker = json.load(f)
+
+        # 检测旧格式（没有 "current" 字段）
+        if "current" not in tracker:
+            # 迁移到新格式
+            tracker = migrate_tracker(tracker)
+            # 保存迁移后的数据
+            with file_lock(tracker_file, "w") as fw:
+                json.dump(tracker, fw, ensure_ascii=False, indent=2)
+            logger.info(f"[SOUL-ENFORCER] 迁移旧格式追踪器: {session_id}")
+
+        return tracker
+    except json.JSONDecodeError as e:
+        logger.error(f"[SOUL-ENFORCER] 追踪文件损坏: {e}")
+        # 备份损坏文件
+        backup_file = tracker_file.with_suffix(".json.corrupted")
+        tracker_file.rename(backup_file)
+        logger.warning(f"[SOUL-ENFORCER] 已备份损坏文件: {backup_file}")
+        return None
     except Exception as e:
         logger.error(f"[SOUL-ENFORCER] 读取追踪文件失败: {e}")
         return None
