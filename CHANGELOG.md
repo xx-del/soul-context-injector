@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.9.1] - 2026-06-07
+
+### Fixed
+- Plugin loading failure due to importing deprecated functions from interceptor.py
+- Removed `has_execution_auth()` import and call
+- Removed `grant_execution_auth()` import and call
+- Removed `find_execution_plan()` import and call
+- Removed `is_write_operation()` import and call
+
+### Removed
+- Layer 3 write operation interception (writes no longer require auth)
+- Execution auth grant logic for L4 tasks
+
+### Changed
+- L4 tasks now wait for LLM to autonomously judge plan path
+- Updated docstring with four-layer interception documentation
+
+### Reference
+- interceptor.py v5.8.0 removed these deprecated functions
+- Layer 0: Sub-agent bypass
+- Layer 1: Skill whitelist bypass
+- Layer 2: Destructive command interception
+- Layer 3: Workflow completion check (was Layer 4)
+
 ## [5.3.0] - 2026-05-19
 
 ### Added
