@@ -385,13 +385,17 @@ def has_called_skill(session_id: str, skill_name: str) -> bool:
 
 def check_required_skills(session_id: str) -> Tuple[bool, Optional[str]]:
     """检查是否调用了所有必须技能 + 实际执行
-    
+
+    支持新旧格式追踪器：
+    - 新格式: tracker.current.required_skills, tracker.current.called_skills, tracker.history
+    - 旧格式: tracker.required_skills, tracker.called_skills
+
     ⚠️ 逃生舱机制：每次拦截自动递增 escape_attempts
     达到 MAX_ESCAPE_ATTEMPTS 后自动放行
-    
+
     Args:
         session_id: 会话ID
-    
+
     Returns:
         (True, None): 检查通过，允许输出
         (False, error): 检查失败，返回错误信息
@@ -399,19 +403,31 @@ def check_required_skills(session_id: str) -> Tuple[bool, Optional[str]]:
     tracker = get_tracker(session_id)
     if not tracker:
         return True, None
-    
-    required = tracker.get("required_skills", [])
-    called = tracker.get("called_skills", [])
+
+    # 获取当前任务必需技能（兼容新旧格式）
+    current = tracker.get("current", {})
+    if current:
+        # 新格式
+        required = current.get("required_skills", [])
+        called = set(current.get("called_skills", []))
+        # 从历史中合并已调用技能
+        for h in tracker.get("history", []):
+            called.update(h.get("called", []))
+    else:
+        # 旧格式
+        required = tracker.get("required_skills", [])
+        called = set(tracker.get("called_skills", []))
+
     executed_by = tracker.get("executed_by", [])
     task_level = tracker.get("task_level")
-    
+
     # 超时检查
     if check_execution_timeout(session_id):
         return True, None
-    
+
     # 检查技能调用
     missing_skills = [s for s in required if s not in called]
-    
+
     # L4 任务检查实际执行
     missing_execution = False
     if task_level == "L4" and not executed_by:
