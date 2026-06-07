@@ -110,23 +110,102 @@ def migrate_tracker(old_tracker: Dict) -> Dict:
 
 
 def create_tracker(session_id: str, task_level: str) -> Path:
-    """创建技能追踪文件"""
+    """创建或更新追踪器（增量模式）
+
+    - 首次创建：初始化新追踪器
+    - 等级相同：无操作
+    - 等级转换：保存历史，更新当前任务
+
+    Args:
+        session_id: 会话 ID
+        task_level: 任务等级（L0-L4, W, S）
+
+    Returns:
+        追踪文件路径
+    """
     TRACKING_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     required_skills = SKILL_BINDINGS.get(task_level, [])
-    
-    tracker_data = {
-        "session_id": session_id,
-        "task_level": task_level,
-        "created_at": datetime.datetime.now().isoformat(),
-        "called_skills": [],  # 已调用的技能列表
-        "required_skills": required_skills,  # 必须调用的技能
-    }
-    
     tracker_file = TRACKING_DIR / f"{session_id}.json"
-    tracker_file.write_text(json.dumps(tracker_data, ensure_ascii=False, indent=2))
-    logger.info(f"[SOUL-ENFORCER] 创建技能追踪: session={session_id}, level={task_level}, required={required_skills}")
-    
+
+    # 尝试读取旧追踪器
+    old_tracker = None
+    if tracker_file.exists():
+        try:
+            with file_lock(tracker_file, "r") as f:
+                old_tracker = json.load(f)
+        except Exception as e:
+            logger.warning(f"[SOUL-ENFORCER] 读取旧追踪器失败: {e}")
+
+    now = datetime.datetime.now().isoformat()
+
+    # 首次创建
+    if not old_tracker:
+        tracker_data = {
+            "session_id": session_id,
+            "task_level": task_level,
+            "created_at": now,
+            "updated_at": now,
+            "current": {
+                "required_skills": required_skills,
+                "called_skills": []
+            },
+            "history": [],
+            "metadata": {
+                "total_calls": 0,
+                "level_transitions": 0,
+                "last_skill_at": None
+            }
+        }
+        logger.info(f"[SOUL-ENFORCER] 创建追踪器: session={session_id}, level={task_level}")
+
+    # 增量更新
+    else:
+        old_level = old_tracker.get("task_level")
+
+        # 等级相同，无需更新
+        if old_level == task_level:
+            logger.debug(f"[SOUL-ENFORCER] 等级相同，跳过更新: {session_id}")
+            return tracker_file
+
+        # 等级转换
+        history_entry = {
+            "level": old_level,
+            "from": old_tracker.get("created_at"),
+            "to": now,
+            "required": old_tracker.get("current", {}).get("required_skills", []),
+            "called": old_tracker.get("current", {}).get("called_skills", []),
+            "completed": _check_completion(old_tracker)
+        }
+
+        # 限制历史长度
+        history = old_tracker.get("history", [])
+        history.append(history_entry)
+        if len(history) > 10:
+            history = history[-10:]
+
+        tracker_data = {
+            "session_id": session_id,
+            "task_level": task_level,
+            "created_at": old_tracker.get("created_at"),  # 保留创建时间
+            "updated_at": now,
+            "current": {
+                "required_skills": required_skills,
+                "called_skills": old_tracker.get("current", {}).get("called_skills", [])  # 保留已调用技能
+            },
+            "history": history,
+            "metadata": {
+                "total_calls": old_tracker.get("metadata", {}).get("total_calls", 0),
+                "level_transitions": old_tracker.get("metadata", {}).get("level_transitions", 0) + 1,
+                "last_skill_at": old_tracker.get("metadata", {}).get("last_skill_at")
+            }
+        }
+        logger.info(f"[SOUL-ENFORCER] 等级转换: {session_id}, {old_level} → {task_level}")
+
+    # 写入文件（带锁）
+    with file_lock(tracker_file, "w") as f:
+        json.dump(tracker_data, f, ensure_ascii=False, indent=2)
+
     return tracker_file
 
 
