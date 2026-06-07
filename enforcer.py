@@ -375,13 +375,22 @@ def cleanup_expired_trackers():
 
 
 def update_tracker(session_id: str, data: Dict[str, Any]) -> bool:
-    """更新技能追踪数据"""
+    """更新技能追踪数据（带文件锁）
+
+    Args:
+        session_id: 会话ID
+        data: 追踪器数据
+
+    Returns:
+        True 如果更新成功
+    """
     tracker_file = TRACKING_DIR / f"{session_id}.json"
     if not tracker_file.exists():
         return False
-    
+
     try:
-        tracker_file.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+        with file_lock(tracker_file, "w") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
         logger.error(f"[SOUL-ENFORCER] 更新追踪文件失败: {e}")
