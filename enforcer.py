@@ -12,6 +12,8 @@ import datetime
 import re
 import time
 import os
+import fcntl
+import contextlib
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -52,6 +54,17 @@ except ImportError:
 
 # 追踪文件目录
 TRACKING_DIR = Path.home() / ".hermes" / "skill-tracking"
+
+
+@contextlib.contextmanager
+def file_lock(file_path: Path, mode: str = "r"):
+    """文件锁上下文管理器"""
+    with open(file_path, mode) as f:
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # 排他锁
+            yield f
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # 释放锁
 
 
 def create_tracker(session_id: str, task_level: str) -> Path:
