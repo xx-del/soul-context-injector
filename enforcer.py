@@ -398,26 +398,67 @@ def update_tracker(session_id: str, data: Dict[str, Any]) -> bool:
 
 
 def track_skill_call(session_id: str, skill_name: str) -> bool:
-    """追踪技能调用"""
+    """追踪技能调用（更新元数据）
+
+    支持新旧格式追踪器，并更新 metadata。
+
+    Args:
+        session_id: 会话ID
+        skill_name: 技能名称
+
+    Returns:
+        True 如果追踪成功
+    """
     tracker = get_tracker(session_id)
     if not tracker:
         return False
-    
-    if skill_name not in tracker["called_skills"]:
-        tracker["called_skills"].append(skill_name)
+
+    # 获取已调用技能列表（兼容新旧格式）
+    current = tracker.get("current", {})
+    if current:
+        # 新格式
+        called_skills = current.get("called_skills", [])
+    else:
+        # 旧格式
+        called_skills = tracker.get("called_skills", [])
+
+    if skill_name not in called_skills:
+        called_skills.append(skill_name)
+
+        # 更新元数据（新格式）
+        metadata = tracker.get("metadata", {})
+        if metadata:
+            metadata["total_calls"] = metadata.get("total_calls", 0) + 1
+            metadata["last_skill_at"] = datetime.datetime.now().isoformat()
+
         update_tracker(session_id, tracker)
         logger.info(f"[SOUL-ENFORCER] 技能调用追踪: session={session_id}, skill={skill_name}")
-    
+
     return True
 
 
 def has_called_skill(session_id: str, skill_name: str) -> bool:
-    """检查是否调用了指定技能"""
+    """检查是否调用了指定技能（支持新旧格式）
+
+    Args:
+        session_id: 会话ID
+        skill_name: 技能名称
+
+    Returns:
+        True 如果已调用
+    """
     tracker = get_tracker(session_id)
     if not tracker:
         return False
-    
-    return skill_name in tracker["called_skills"]
+
+    # 兼容新旧格式
+    current = tracker.get("current", {})
+    if current:
+        called_skills = current.get("called_skills", [])
+    else:
+        called_skills = tracker.get("called_skills", [])
+
+    return skill_name in called_skills
 
 
 def check_required_skills(session_id: str) -> Tuple[bool, Optional[str]]:
