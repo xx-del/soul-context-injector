@@ -240,4 +240,4 @@ def register(ctx):
     ctx.register_hook("pre_llm_call", pre_llm_call_hook)
     ctx.register_hook("pre_tool_call", pre_tool_call_hook)
     ctx.register_hook("post_tool_call", post_tool_call_hook)
-    logger.info("[soul-context-injector] 插件已加载 v5.5")
+    logger.info("[soul-context-injector] 插件已加载 v5.9.1")
