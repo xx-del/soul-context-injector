@@ -59,6 +59,45 @@ def build_phase_info(task_level: str) -> dict:
     }
 
 
+# ============ 技能执行指令 ============
+
+def build_skill_directive(skill_name: str, session_id: str = None) -> str:
+    """构建技能执行指令 - 强制执行模式"""
+    # 创建技能追踪器
+    if session_id:
+        from .enforcer import create_tracker
+        create_tracker(session_id, "S")  # S = Skill
+    
+    return f"""【技能任务 - 强制执行模式】
+
+检测到技能：{skill_name}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  强制约束（必须严格遵守）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 【第一步】你必须调用 skill_view(name="{skill_name}") 加载技能
+2. 【第二步】你必须按照技能 SKILL.md 中的步骤执行
+3. 【禁止】未调用技能直接执行
+4. 【禁止】跳过技能定义的任何步骤
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 执行前验证清单（必须全部完成）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- [ ] 已调用 skill_view(name="{skill_name}")
+- [ ] 已读取技能定义（SKILL.md）
+- [ ] 已按照技能步骤执行
+
+⚠️ 验证清单未完成 → 禁止输出最终结果
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+技能已绑定：{skill_name}
+
+"""
+
+
 # ============ 工作流执行指令 ============
 
 def build_workflow_directive(workflow_name: str, session_id: str = None) -> str:
@@ -116,23 +155,39 @@ def build_l2_directive(session_id: str) -> str:
     """构建 L2 思考任务指令"""
     return """【L2 思考任务 - 强制执行】
 
-检测到思考任务，需要调用 deep-thinking 技能。
+检测到思考任务，需要调用 deep-thinking 技能（增强版）。
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️  强制约束（必须严格遵守）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. 【第一步】你必须调用 skill_view(name="deep-thinking") 加载技能
-2. 【第二步】按照 deep-thinking SKILL.md 中的步骤执行分析
-3. 【禁止】未调用技能直接输出分析内容
+1. 【第一步】初次思考
+   - 调用 skill_view(name="deep-thinking")
+   - 思考需要什么信息、如何分析
+
+2. 【第二步】信息搜集
+   - 按需读取文件
+   - 按需搜索网络
+   - 获取实际信息
+
+3. 【第三步】二次思考
+   - 调用 skill_view(name="deep-thinking")
+   - 基于搜集的信息形成结论
+
+4. 【第四步】输出结果
+   - 结论在前，细节在后
+
+【禁止】未搜集信息直接分析
+【禁止】基于假设而非事实分析
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 执行前验证清单
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- [ ] 已调用 skill_view(name="deep-thinking")
-- [ ] 已按照技能步骤执行分析
-- [ ] 已形成结论
+- [ ] 已调用 deep-thinking（初次思考）
+- [ ] 已搜集实际信息
+- [ ] 已调用 deep-thinking（二次思考）
+- [ ] 已形成基于事实的结论
 
 """
 
@@ -284,7 +339,13 @@ def build_context(
 """
     context_parts.append(constraint_section)
     
-    # 0. 工作流检测（最高优先级，跳过所有规则）
+    # 0. 技能检测（最高优先级，新增）
+    skill_name = decision.get("skill_name")
+    if skill_name:
+        logger.info(f"[soul] 技能任务，注入技能指令: {skill_name}")
+        return build_skill_directive(skill_name, session_id)
+    
+    # 1. 工作流检测（次高优先级，跳过所有规则）
     workflow_name = decision.get("workflow_name")
     task_level = decision.get("task_level")
 
