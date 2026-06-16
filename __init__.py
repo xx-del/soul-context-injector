@@ -48,22 +48,43 @@ import logging
 import re
 from typing import Optional, Dict, Any
 
-# 导入各模块
-from .constants import logger
-from .state import (
-    set_active_skill,
-    get_active_skill,
-    is_skill_in_whitelist,
-)
-from .analyzer import analyze_task
-from .context_builder import build_context
-from .interceptor import (
-    is_dangerous_command,
-    log_violation,
-    build_error_message,
-    check_workflow_completion,
-)
-from .subagent_detector import is_subagent
+# 支持相对导入和绝对导入
+try:
+    from .constants import logger
+except ImportError:
+    # 当作为独立模块导入时（如测试），使用默认logger
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("soul-context-injector")
+
+# 条件导入其他模块
+def _lazy_imports():
+    """延迟导入模块，避免循环导入问题"""
+    global set_active_skill, get_active_skill, is_skill_in_whitelist
+    global analyze_task, build_context
+    global is_dangerous_command, log_violation, build_error_message
+    global check_workflow_completion, is_subagent
+
+    try:
+        from .state import (
+            set_active_skill,
+            get_active_skill,
+            is_skill_in_whitelist,
+        )
+        from .analyzer import analyze_task
+        from .context_builder import build_context
+        from .interceptor import (
+            is_dangerous_command,
+            log_violation,
+            build_error_message,
+            check_workflow_completion,
+        )
+        from .subagent_detector import is_subagent
+    except ImportError:
+        # 测试环境下可能不需要这些
+        pass
+
+# 执行延迟导入
+_lazy_imports()
 
 
 # ============ Plugin Hooks ============
@@ -147,6 +168,11 @@ def pre_tool_call_hook(
     Layer 6: 其他 - 直接放行
     """
     
+    # 检查强制机制状态
+    from .enforcer import ENFORCEMENT_ENABLED, ENFORCEMENT_MODE
+    if not ENFORCEMENT_ENABLED:
+        logger.debug(f"[SOUL] 强制机制已禁用，模式: {ENFORCEMENT_MODE}")
+    
     # Layer 0: 强制执行检查（新增）
     from .enforcer import should_enforce, check_required_skills, track_skill_call
     
@@ -158,8 +184,10 @@ def pre_tool_call_hook(
         if tool_name == "skill_view":
             skill_name = args.get("name")
             if skill_name:
-                logger.info(f"[SOUL] 准备追踪技能调用: {skill_name}")
-                result = track_skill_call(session_id, skill_name)
+                # 清理技能名称（移除目录前缀如 openclaw-imports/）
+                clean_skill_name = skill_name.split("/")[-1] if "/" in skill_name else skill_name
+                logger.info(f"[SOUL] 准备追踪技能调用: {clean_skill_name}")
+                result = track_skill_call(session_id, clean_skill_name)
                 logger.info(f"[SOUL] 追踪结果: {result}")
         
         # 【v3.0 新增】追踪实际执行（多路径）
@@ -201,8 +229,11 @@ def pre_tool_call_hook(
     # 技能加载检测：skill_view 调用时自动设置 active_skill
     if tool_name == "skill_view" and args.get("name"):
         skill_name = args.get("name")
-        set_active_skill(skill_name)
-        logger.info(f"[SOUL] 技能加载: {skill_name}")
+        if skill_name:
+            # 清理技能名称（移除目录前缀如 openclaw-imports/）
+            clean_skill_name = skill_name.split("/")[-1] if "/" in skill_name else skill_name
+            set_active_skill(clean_skill_name)
+            logger.info(f"[SOUL] 技能加载: {clean_skill_name}")
     
     # Layer 1: 技能白名单 - 最优先放行
     active_skill = get_active_skill()
@@ -243,9 +274,65 @@ def post_tool_call_hook(
     pass
 
 
+def post_llm_call_hook(**kwargs) -> Optional[Dict[str, str]]:
+    """PostLLMCall Hook - 持续注入约束直到任务完成
+    
+    检查追踪器状态：
+    - 如果任务未完成（required_skills 未全部调用）
+    - 重新注入约束上下文
+    - 直到所有 required_skills 都被调用
+    
+    v5.11.0 新增：
+    - 解决等级转换后上下文消失问题
+    - 确保 L4 任务持续看到约束
+    """
+    from .enforcer import get_tracker, _check_completion
+    from .context_builder import build_l4_explicit_directive, build_l3_directive, build_l2_directive
+    
+    # 从 kwargs 提取参数
+    session_id = kwargs.get("session_id")
+    if not session_id:
+        return None
+    
+    # 获取追踪器
+    tracker = get_tracker(session_id)
+    if not tracker:
+        return None
+    
+    task_level = tracker.get("task_level")
+    
+    # 只处理 L2/L3/L4 任务
+    if task_level not in ["L2", "L3", "L4"]:
+        return None
+    
+    # 检查任务是否完成
+    completed = _check_completion(tracker)
+    
+    if completed:
+        logger.debug(f"[SOUL] 任务已完成，不再注入: session={session_id}, level={task_level}")
+        return None
+    
+    # 任务未完成，重新注入约束
+    logger.info(f"[SOUL] 任务未完成，重新注入约束: session={session_id}, level={task_level}")
+    
+    # 根据任务等级构建约束
+    if task_level == "L4":
+        constraint = build_l4_explicit_directive(session_id)
+    elif task_level == "L3":
+        constraint = build_l3_directive(session_id)
+    elif task_level == "L2":
+        constraint = build_l2_directive(session_id)
+    else:
+        return None
+    
+    # 注入约束上下文
+    return {"context": constraint}
+
+
 def register(ctx):
     """插件注册入口"""
     ctx.register_hook("pre_llm_call", pre_llm_call_hook)
     ctx.register_hook("pre_tool_call", pre_tool_call_hook)
     ctx.register_hook("post_tool_call", post_tool_call_hook)
-    logger.info("[soul-context-injector] 插件已加载 v5.9.1")
+    ctx.register_hook("post_llm_call", post_llm_call_hook)  # v5.11.0: 持续注入约束
+    logger.info("[soul-context-injector] 插件已加载 v5.11.0")

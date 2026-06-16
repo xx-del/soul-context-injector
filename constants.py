@@ -34,8 +34,7 @@ PLUGIN_DIR = Path(__file__).parent
 RULES_DIR = PLUGIN_DIR / "rules"
 RULES_INDEX_PATH = RULES_DIR / "index.json"
 VIOLATIONS_LOG = Path.home() / ".hermes" / "logs" / "soul-violations.log"
-# EXECUTION_AUTH_FILE 已废弃 - 现在使用按 session_id 分离的认证文件
-# 见 interceptor.py 中的 get_auth_file() 函数
+# EXECUTION_AUTH_FILE 已废弃 - session 追踪机制不可靠（v5.9.0 移除）
 
 # ============ 日志 ============
 logger = logging.getLogger("soul-context-injector")

@@ -12,17 +12,37 @@ from typing import Dict, Any, Optional
 from functools import lru_cache
 from pathlib import Path
 
-from .constants import (
-    logger,
-    OLLAMA_URL,
-    DEFAULT_MODEL,
-    TIMEOUT_MS,
-    MAX_RETRIES,
-    RULES_DIR,
-    RULES_INDEX_PATH,
-    CONFIRM_KEYWORDS,
-    PLUGIN_DIR,
-)
+# 支持相对导入和绝对导入
+try:
+    from .constants import (
+        logger,
+        OLLAMA_URL,
+        DEFAULT_MODEL,
+        TIMEOUT_MS,
+        MAX_RETRIES,
+        RULES_DIR,
+        RULES_INDEX_PATH,
+        CONFIRM_KEYWORDS,
+        PLUGIN_DIR,
+    )
+except ImportError:
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("soul-analyzer")
+    # 降级时使用默认值
+    OLLAMA_URL = "http://localhost:11434/api/generate"
+    DEFAULT_MODEL = "qwen2.5:7b"
+    TIMEOUT_MS = 15000
+    MAX_RETRIES = 3
+    RULES_DIR = Path(__file__).parent / "rules"
+    RULES_INDEX_PATH = RULES_DIR / "index.json"
+    CONFIRM_KEYWORDS = [
+        "是", "同意", "确认", "执行", "好的", "可以", "没问题",
+        "开始吧", "执行吧", "确认执行", "同意执行",
+        "ok", "OK", "yes", "Yes", "approve", "confirm",
+        "好", "嗯", "需要"
+    ]
+    PLUGIN_DIR = Path(__file__).parent
 
 
 # ============ 工作流本地检测 ============
@@ -177,6 +197,10 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
 
 # ============ 技能意图检测 ============
 
+# 默认技能白名单（降级时使用）
+DEFAULT_SKILL_WHITELIST = ["workflow-manager", "agent-pool", "planning-with-files"]
+
+
 def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
     """技能意图检测（直接匹配白名单技能名）
 
@@ -186,7 +210,10 @@ def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
     Returns:
         匹配成功返回 decision 字典，否则返回 None
     """
-    from .constants import SKILL_WHITELIST
+    try:
+        from .constants import SKILL_WHITELIST
+    except ImportError:
+        SKILL_WHITELIST = DEFAULT_SKILL_WHITELIST
 
     msg_lower = user_message.lower()
 

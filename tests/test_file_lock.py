@@ -2,6 +2,11 @@ import json
 import threading
 import pytest
 from pathlib import Path
+import sys
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from enforcer import file_lock
 
 def test_file_lock_prevents_concurrent_write(tmp_path):
