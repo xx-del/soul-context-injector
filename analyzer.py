@@ -5,6 +5,7 @@ Soul Context Injector - 任务分析
 """
 
 import json
+import re
 import time
 import requests
 import yaml
@@ -84,33 +85,66 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                     "self_improving": False,
                 }
         
-        # 2. 包含"工作流"三字 → 必须包含完整工作流名称
+        # 2. 包含"工作流"三字 → 直接返回 W
         if "工作流" in user_message:
+            # 尝试匹配具体工作流名称（用于日志记录）
             matched_name = None
             for name in workflow_names:
                 if name.lower() in msg_lower:
                     matched_name = name
                     break
-
-            if matched_name:
-                logger.info(f"[soul] 工作流本地检测命中（包含'工作流'+完整名称）: {matched_name}")
+            if not matched_name:
+                for tag in workflow_tags:
+                    if tag.lower() in msg_lower:
+                        for wf in index.get('workflows', []):
+                            if wf.get('status') == 'active' and tag in wf.get('tags', []):
+                                matched_name = wf['name']
+                                break
+                        if matched_name:
+                            break
+            
+            logger.info(f"[soul] 工作流本地检测命中（包含'工作流'）: {matched_name or '未匹配具体工作流'}")
+            return {
+                "success": True,
+                "task_level": "W",
+                "workflow_name": matched_name,
+                "write_operation": False,
+                "code_guidance": False,
+                "agent_pool": False,
+                "skill_usage": True,
+                "self_improving": False,
+            }
+        
+        # 3. 包含"流程"二字 → 直接返回 W
+        if "流程" in user_message:
+            # 尝试匹配具体工作流名称（用于日志记录）
+            matched_name = None
+            for name in workflow_names:
+                if name.lower() in msg_lower:
+                    matched_name = name
+                    break
+            
+            logger.info(f"[soul] 工作流本地检测命中（包含'流程'）: {matched_name or '未匹配具体工作流'}")
+            return {
+                "success": True,
+                "task_level": "W",
+                "workflow_name": matched_name,
+                "write_operation": False,
+                "code_guidance": False,
+                "agent_pool": False,
+                "skill_usage": True,
+                "self_improving": False,
+            }
+        
+        # 4. 模糊匹配：用户消息包含工作流名称或标签
+        # 匹配优先级：名称 > 标签
+        for name in workflow_names:
+            if name.lower() in msg_lower:
+                logger.info(f"[soul] 工作流本地检测命中（模糊匹配名称）: {name}")
                 return {
                     "success": True,
                     "task_level": "W",
-                    "workflow_name": matched_name,
-                    "write_operation": False,
-                    "code_guidance": False,
-                    "agent_pool": False,
-                    "skill_usage": True,
-                    "self_improving": False,
-                }
-            else:
-                # 包含"工作流"但未匹配到完整名称 → 返回 W 但不指定具体工作流
-                logger.info(f"[soul] 工作流本地检测命中（包含'工作流'但未匹配具体名称）")
-                return {
-                    "success": True,
-                    "task_level": "W",
-                    "workflow_name": None,
+                    "workflow_name": name,
                     "write_operation": False,
                     "code_guidance": False,
                     "agent_pool": False,
@@ -118,39 +152,86 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                     "self_improving": False,
                 }
         
-        # 3. 包含"流程"二字 → 必须包含完整工作流名称
-        if "流程" in user_message:
-            matched_name = None
-            for name in workflow_names:
-                if name.lower() in msg_lower:
-                    matched_name = name
-                    break
-
-            if matched_name:
-                logger.info(f"[soul] 工作流本地检测命中（包含'流程'+完整名称）: {matched_name}")
-                return {
-                    "success": True,
-                    "task_level": "W",
-                    "workflow_name": matched_name,
-                    "write_operation": False,
-                    "code_guidance": False,
-                    "agent_pool": False,
-                    "skill_usage": True,
-                    "self_improving": False,
-                }
-
-        # 4. 移除纯模糊匹配规则（v5.7.0 修复）
-        # 原代码问题：
-        #   for name in workflow_names:
-        #       if name.lower() in msg_lower:  # ❌ "home" 会匹配 "home漏扫"
-        # 修复：完全移除此规则，只保留以上精确匹配
-        # 理由：短工作流名称会错误匹配任何包含它的用户消息
-
+        for tag in workflow_tags:
+            if tag.lower() in msg_lower:
+                # 找到对应的第一个工作流名称
+                for wf in index.get('workflows', []):
+                    if wf.get('status') == 'active' and tag in wf.get('tags', []):
+                        logger.info(f"[soul] 工作流本地检测命中（模糊匹配标签）: {wf['name']}")
+                        return {
+                            "success": True,
+                            "task_level": "W",
+                            "workflow_name": wf['name'],
+                            "write_operation": False,
+                            "code_guidance": False,
+                            "agent_pool": False,
+                            "skill_usage": True,
+                            "self_improving": False,
+                        }
+        
         return None
     
     except Exception as e:
         logger.warning(f"[soul] 工作流本地检测失败: {e}")
         return None
+
+
+# ============ 技能意图检测 ============
+
+def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
+    """技能意图检测（在 Ollama 之前）
+    
+    检测用户是否有使用技能的意图，并检查技能是否在白名单中。
+    白名单技能直接执行（L0），跳过 Ollama 分析和思考流程。
+    
+    检测模式：
+    1. "使用 X 技能"
+    2. "调用 X 技能"
+    3. "用 X 处理"
+    4. "通过 X 技能"
+    
+    Returns:
+        匹配成功返回 decision 字典，否则返回 None
+    """
+    from .constants import SKILL_WHITELIST
+    
+    # 技能使用模式（正则表达式）
+    patterns = [
+        r"使用\s*([a-z0-9\-]+)\s*技能",
+        r"调用\s*([a-z0-9\-]+)\s*技能",
+        r"用\s*([a-z0-9\-]+)\s*(?:技能)?处理",
+        r"通过\s*([a-z0-9\-]+)\s*技能",
+        r"利用\s*([a-z0-9\-]+)\s*技能",
+    ]
+    
+    msg_lower = user_message.lower().strip()
+    
+    for pattern in patterns:
+        match = re.search(pattern, msg_lower)
+        if match:
+            skill_name = match.group(1)
+            
+            # 检查是否在白名单
+            if skill_name in SKILL_WHITELIST:
+                logger.info(f"[soul] 技能白名单命中: {skill_name}")
+                return {
+                    "success": True,
+                    "task_level": "L0",  # 微任务：直接执行，跳过思考
+                    "workflow_name": None,
+                    "write_operation": False,
+                    "code_guidance": False,
+                    "agent_pool": False,
+                    "skill_usage": True,
+                    "self_improving": False,
+                    "skill_name": skill_name,
+                    "reason": f"技能白名单: {skill_name}",
+                }
+            else:
+                # 技能不在白名单，继续后续分析
+                logger.info(f"[soul] 技能意图检测命中但不在白名单: {skill_name}")
+                return None
+    
+    return None
 
 
 # ============ 本地规则客户端 ============
@@ -248,20 +329,16 @@ class LocalRuleClient:
                 has_new_task = any(kw in lower for kw in new_task_keywords)
                 
                 if not has_new_task:
-                    # 确认词但不是新任务 → 返回 L4，由大模型从上下文判断
-                    return "L4"
+                    # 确认词但不是新任务 → 可能是L4，检查方案文件
+                    plan_path = find_execution_plan()
+                    if plan_path and plan_path.exists():
+                        return "L4"
             
             # 继续到下面的关键词判断逻辑（不再直接return "L3"）
         
         # 2. 执行类关键词 → L3（实际执行）
         exec_kws = ["创建", "实施", "执行", "部署", "安装", "卸载", "修改", "删除", "写入", "create", "implement", "deploy"]
         if any(kw in lower for kw in exec_kws):
-            return "L3"
-
-        # 2.5. 写入操作检测 → 至少L3（规则约束：L0/L1不涉及写入）
-        # L0规则: 不调用工具，不执行命令
-        # L1规则: 不涉及写入操作
-        if self._detect_write(lower):
             return "L3"
         
         # 3. 规划类关键词 → L2（分析规划，非执行）
@@ -447,15 +524,21 @@ def analyze_task(user_message: str) -> Dict[str, Any]:
     
     优先级：
     1. 工作流本地检测（精确匹配，不调用 Ollama）
-    2. Ollama 分析
-    3. 本地规则降级
+    2. 技能意图检测（白名单技能直接执行）
+    3. Ollama 分析
+    4. 本地规则降级
     """
     # 1. 工作流本地检测（最高优先级）
     workflow_result = detect_workflow_local(user_message)
     if workflow_result:
         return workflow_result
     
-    # 2. Ollama 分析
+    # 2. 技能意图检测（白名单技能）
+    skill_result = detect_skill_intent(user_message)
+    if skill_result:
+        return skill_result
+    
+    # 3. Ollama 分析
     decision = None
     try:
         from .context_builder import build_ollama_prompt
@@ -468,7 +551,7 @@ def analyze_task(user_message: str) -> Dict[str, Any]:
     except Exception as e:
         logger.warning(f"[soul] Ollama 分析失败: {e}")
     
-    # 3. 降级：本地规则
+    # 4. 降级：本地规则
     if not decision or not decision.get("success"):
         logger.info("[soul] 使用本地规则降级分析")
         decision = local_client.analyze(user_message)
