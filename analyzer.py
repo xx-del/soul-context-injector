@@ -5,7 +5,6 @@ Soul Context Injector - 任务分析
 """
 
 import json
-import re
 import time
 import requests
 import yaml
@@ -179,58 +178,34 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
 # ============ 技能意图检测 ============
 
 def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
-    """技能意图检测（在 Ollama 之前）
-    
-    检测用户是否有使用技能的意图，并检查技能是否在白名单中。
+    """技能意图检测（直接匹配白名单技能名）
+
+    检测用户消息中是否包含白名单技能名称。
     白名单技能直接执行（L0），跳过 Ollama 分析和思考流程。
-    
-    检测模式：
-    1. "使用 X 技能"
-    2. "调用 X 技能"
-    3. "用 X 处理"
-    4. "通过 X 技能"
-    
+
     Returns:
         匹配成功返回 decision 字典，否则返回 None
     """
     from .constants import SKILL_WHITELIST
-    
-    # 技能使用模式（正则表达式）
-    patterns = [
-        r"使用\s*([a-z0-9\-]+)\s*技能",
-        r"调用\s*([a-z0-9\-]+)\s*技能",
-        r"用\s*([a-z0-9\-]+)\s*(?:技能)?处理",
-        r"通过\s*([a-z0-9\-]+)\s*技能",
-        r"利用\s*([a-z0-9\-]+)\s*技能",
-    ]
-    
-    msg_lower = user_message.lower().strip()
-    
-    for pattern in patterns:
-        match = re.search(pattern, msg_lower)
-        if match:
-            skill_name = match.group(1)
-            
-            # 检查是否在白名单
-            if skill_name in SKILL_WHITELIST:
-                logger.info(f"[soul] 技能白名单命中: {skill_name}")
-                return {
-                    "success": True,
-                    "task_level": "L0",  # 微任务：直接执行，跳过思考
-                    "workflow_name": None,
-                    "write_operation": False,
-                    "code_guidance": False,
-                    "agent_pool": False,
-                    "skill_usage": True,
-                    "self_improving": False,
-                    "skill_name": skill_name,
-                    "reason": f"技能白名单: {skill_name}",
-                }
-            else:
-                # 技能不在白名单，继续后续分析
-                logger.info(f"[soul] 技能意图检测命中但不在白名单: {skill_name}")
-                return None
-    
+
+    msg_lower = user_message.lower()
+
+    for skill_name in SKILL_WHITELIST:
+        if skill_name in msg_lower:
+            logger.info(f"[soul] 技能白名单命中: {skill_name}")
+            return {
+                "success": True,
+                "task_level": "L0",
+                "workflow_name": None,
+                "write_operation": False,
+                "code_guidance": False,
+                "agent_pool": False,
+                "skill_usage": True,
+                "self_improving": False,
+                "skill_name": skill_name,
+                "reason": f"技能白名单: {skill_name}",
+            }
+
     return None
 
 
