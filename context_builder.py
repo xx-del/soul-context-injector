@@ -162,7 +162,7 @@ def build_l2_directive(session_id: str) -> str:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. 【第一步】初次思考
-   - 确保 deep-thinking 已在上下文中（如未加载则调用 skill_view(name="deep-thinking")）
+   - 调用 skill_view(name="deep-thinking")
    - 思考需要什么信息、如何分析
 
 2. 【第二步】信息搜集
@@ -171,7 +171,8 @@ def build_l2_directive(session_id: str) -> str:
    - 获取实际信息
 
 3. 【第三步】二次思考
-   - 确保 deep-thinking 已在上下文中，基于搜集的信息形成结论
+   - 调用 skill_view(name="deep-thinking")
+   - 基于搜集的信息形成结论
 
 4. 【第四步】输出结果
    - 结论在前，细节在后
@@ -205,9 +206,9 @@ def build_l3_directive(session_id: str) -> str:
    - 有则跳到步骤 3
    - 无则执行步骤 2
 
-2. 【第二步】确保 deep-thinking 已在上下文中，执行分析
+2. 【第二步】调用 skill_view(name="deep-thinking") 执行分析
 
-3. 【第三步】确保 openclaw-behavior-plan 已在上下文中，生成方案
+3. 【第三步】调用 skill_view(name="openclaw-behavior-plan") 生成方案
 
 4. 【第四步】输出方案，等待用户确认
 
@@ -234,8 +235,8 @@ def build_l4_explicit_directive(session_id: str) -> str:
 ⚠️  强制约束（必须严格遵守）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. 【第一步】确保 planning-with-files 已在上下文中（如未加载则调用 skill_view(name="planning-with-files")）
-2. 【第二步】确保 agent-pool 已在上下文中（如未加载则调用 skill_view(name="agent-pool")）
+1. 【第一步】你必须调用 skill_view(name="planning-with-files") 加载技能
+2. 【第二步】你必须调用 skill_view(name="agent-pool") 加载技能
 3. 【第三步】你必须使用以下方式之一执行任务：
    - delegate_task() 工具
    - agent_pool_client.execute() Python API
