@@ -53,8 +53,6 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
     匹配规则：
     1. 完全匹配工作流节点名称
     2. 包含"工作流"三字 + 名称关键词
-    3. 包含"流程"二字 + 名称关键词
-    4. 用户消息包含工作流名称/标签（模糊匹配）
     
     Returns:
         匹配成功返回 decision 字典，否则返回 None
@@ -134,60 +132,6 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
                 "self_improving": False,
             }
         
-        # 3. 包含"流程"二字 → 直接返回 W
-        if "流程" in user_message:
-            # 尝试匹配具体工作流名称（用于日志记录）
-            matched_name = None
-            for name in workflow_names:
-                if name.lower() in msg_lower:
-                    matched_name = name
-                    break
-            
-            logger.info(f"[soul] 工作流本地检测命中（包含'流程'）: {matched_name or '未匹配具体工作流'}")
-            return {
-                "success": True,
-                "task_level": "W",
-                "workflow_name": matched_name,
-                "write_operation": False,
-                "code_guidance": False,
-                "agent_pool": False,
-                "skill_usage": True,
-                "self_improving": False,
-            }
-        
-        # 4. 模糊匹配：用户消息包含工作流名称或标签
-        # 匹配优先级：名称 > 标签
-        for name in workflow_names:
-            if name.lower() in msg_lower:
-                logger.info(f"[soul] 工作流本地检测命中（模糊匹配名称）: {name}")
-                return {
-                    "success": True,
-                    "task_level": "W",
-                    "workflow_name": name,
-                    "write_operation": False,
-                    "code_guidance": False,
-                    "agent_pool": False,
-                    "skill_usage": True,
-                    "self_improving": False,
-                }
-        
-        for tag in workflow_tags:
-            if tag.lower() in msg_lower:
-                # 找到对应的第一个工作流名称
-                for wf in index.get('workflows', []):
-                    if wf.get('status') == 'active' and tag in wf.get('tags', []):
-                        logger.info(f"[soul] 工作流本地检测命中（模糊匹配标签）: {wf['name']}")
-                        return {
-                            "success": True,
-                            "task_level": "W",
-                            "workflow_name": wf['name'],
-                            "write_operation": False,
-                            "code_guidance": False,
-                            "agent_pool": False,
-                            "skill_usage": True,
-                            "self_improving": False,
-                        }
-        
         return None
     
     except Exception as e:
@@ -207,18 +151,43 @@ def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
     检测用户消息中是否包含白名单技能名称。
     白名单技能直接执行（L0），跳过 Ollama 分析和思考流程。
 
+    all 模式下扫描所有已安装技能目录，list/disabled 模式使用配置列表。
+
     Returns:
         匹配成功返回 decision 字典，否则返回 None
     """
     try:
-        from .constants import SKILL_WHITELIST
+        from .constants import SKILL_WHITELIST, SKILL_WHITELIST_MODE
     except ImportError:
         SKILL_WHITELIST = DEFAULT_SKILL_WHITELIST
+        SKILL_WHITELIST_MODE = 'list'
 
     msg_lower = user_message.lower()
+    # 去除 / 前缀，支持 /技能名 的 slash 命令格式
+    search_text = msg_lower.lstrip("/")
 
-    for skill_name in SKILL_WHITELIST:
-        if skill_name in msg_lower:
+    # 确定要匹配的技能列表
+    skills_to_check = SKILL_WHITELIST  # list 模式用配置列表
+
+    if SKILL_WHITELIST_MODE == 'all':
+        # all 模式：扫描所有已安装技能
+        from pathlib import Path
+        skills_dir = Path.home() / ".hermes" / "skills"
+        if skills_dir.exists():
+            skills_to_check = []
+            for item in skills_dir.iterdir():
+                if item.is_dir():
+                    # 直接技能目录: ~/.hermes/skills/<skill_name>/SKILL.md
+                    if (item / "SKILL.md").exists():
+                        skills_to_check.append(item.name)
+                    else:
+                        # 分类目录: ~/.hermes/skills/<category>/<skill_name>/SKILL.md
+                        for sub in item.iterdir():
+                            if (sub / "SKILL.md").exists():
+                                skills_to_check.append(sub.name)
+
+    for skill_name in skills_to_check:
+        if skill_name in search_text:
             logger.info(f"[soul] 技能白名单命中: {skill_name}")
             return {
                 "success": True,
