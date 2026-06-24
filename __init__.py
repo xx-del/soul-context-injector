@@ -114,6 +114,12 @@ def pre_llm_call_hook(
     if is_subagent(session_id):
         logger.info(f"[SOUL] 子 agent 放行（LLM）: session={session_id}")
         return None
+
+    # Layer 0.5: 白名单技能已加载 → 跳过注入（防止重复注入）
+    active_skill = get_active_skill()
+    if active_skill and is_skill_in_whitelist(active_skill):
+        logger.info(f"[SOUL] 白名单技能已加载，跳过注入: {active_skill}")
+        return None
     
     logger.debug(f"[soul] 处理消息: {user_message[:100]}...")
     
@@ -167,11 +173,6 @@ def pre_tool_call_hook(
     Layer 5: 工作流完整性 - 检查是否完成所有步骤
     Layer 6: 其他 - 直接放行
     """
-    
-    # 检查强制机制状态
-    from .enforcer import ENFORCEMENT_ENABLED, ENFORCEMENT_MODE
-    if not ENFORCEMENT_ENABLED:
-        logger.debug(f"[SOUL] 强制机制已禁用，模式: {ENFORCEMENT_MODE}")
     
     # Layer 0: 强制执行检查（新增）
     from .enforcer import should_enforce, check_required_skills, track_skill_call
