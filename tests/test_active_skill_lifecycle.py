@@ -158,3 +158,95 @@ class TestActiveSkillLifecycle:
         assert result2 is not None, \
             "Turn 2: should still inject L2 context (task not done)"
         assert "context" in result2
+
+
+class TestWhitelistAndInjectionCoexistence:
+    """白名单放行和 L2 注入应当共存，不互相排斥。"""
+
+    def test_whitelist_still_works_in_pre_tool_call(self, soul_init):
+        """active_skill set → pre_tool_call Layer 1 still whitelist-passes"""
+        soul_init.set_active_skill("deep-thinking")
+
+        # Use a unique session_id to avoid collision with real tracker files
+        result = soul_init.pre_tool_call_hook(
+            tool_name="terminal",
+            args={"command": "ls -la"},
+            task_id="task1",
+            session_id="test_whitelist_coexist",
+        )
+
+        # Whitelisted skill should pass pre_tool_call (return None = no error)
+        assert result is None, \
+            "Whitelisted skill should pass pre_tool_call (no error)"
+
+    def test_injection_resumes_after_skill_view_completes(self, soul_init):
+        """Full cycle: inject → skill_view → clear → inject again"""
+        session_id = "test_resume"
+        base_kwargs = dict(
+            session_id=session_id,
+            conversation_history=[],
+            is_first_turn=False,
+            model="deepseek-v4-flash",
+            platform="custom",
+        )
+
+        # Phase 1: Normal L2 injection (no active_skill)
+        result1 = soul_init.pre_llm_call_hook(
+            user_message="分析漏洞", **base_kwargs
+        )
+        assert result1 is not None, "Phase 1: should inject"
+        assert "context" in result1
+
+        # AI calls skill_view
+        soul_init.set_active_skill("deep-thinking")
+
+        # skill_view completes → post_tool_call clears
+        soul_init.post_tool_call_hook(
+            tool_name="skill_view",
+            args={"name": "deep-thinking"},
+            result={"content": "..."},
+            task_id="task1",
+            session_id=session_id,
+        )
+
+        # Phase 2: Next turn should inject again
+        result2 = soul_init.pre_llm_call_hook(
+            user_message="继续", **base_kwargs
+        )
+        assert result2 is not None, \
+            "Phase 2: should inject again after active_skill cleared"
+        assert "context" in result2
+
+    def test_concurrent_skills_dont_interfere(self, soul_init):
+        """skill_view(skill_A) → skill_view(skill_B) → only B cleared"""
+        session_id = "test_concurrent"
+
+        # AI loads skill A
+        soul_init.pre_tool_call_hook(
+            tool_name="skill_view",
+            args={"name": "workflow-manager"},
+            task_id="task1",
+            session_id=session_id,
+        )
+        assert soul_init.get_active_skill() == "workflow-manager"
+
+        # AI loads skill B (without completing A)
+        soul_init.pre_tool_call_hook(
+            tool_name="skill_view",
+            args={"name": "agent-pool"},
+            task_id="task2",
+            session_id=session_id,
+        )
+        assert soul_init.get_active_skill() == "agent-pool"
+
+        # B completes
+        soul_init.post_tool_call_hook(
+            tool_name="skill_view",
+            args={"name": "agent-pool"},
+            result={"content": "..."},
+            task_id="task2",
+            session_id=session_id,
+        )
+        # B should be cleared
+        assert soul_init.get_active_skill() is None, \
+            "Completed skill should be cleared"
