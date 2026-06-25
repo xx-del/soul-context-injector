@@ -271,8 +271,19 @@ def post_tool_call_hook(
     session_id: str,
     **kwargs
 ):
-    """post_tool_call Hook - 清理技能上下文"""
-    pass
+    """post_tool_call Hook - 清理技能上下文
+
+    skill_view 完成后清除 active_skill，使 pre_llm_call 继续正常注入。
+    不影响 pre_tool_call 的白名单放行（当前工具调用已放行）。
+    """
+    if tool_name == "skill_view" and args.get("name"):
+        skill_name = args.get("name")
+        if skill_name:
+            clean_skill_name = skill_name.split("/")[-1] if "/" in skill_name else skill_name
+            active = get_active_skill()
+            if active == clean_skill_name:
+                set_active_skill(None)
+                logger.info(f"[SOUL] post_tool_call 清除 active_skill: {clean_skill_name}")
 
 
 def post_llm_call_hook(**kwargs) -> Optional[Dict[str, str]]:
