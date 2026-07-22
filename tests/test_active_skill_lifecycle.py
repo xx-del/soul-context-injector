@@ -70,11 +70,11 @@ class TestPreLlmCallLayer05:
     """
 
     def test_pre_llm_call_skips_when_active_skill_set(self, soul_init):
-        """active_skill set → Layer 0.5 returns None (skip injection)"""
+        """active_skill set → 不再跳过注入（等级追踪替代了 whitelist 跳过）"""
         soul_init.set_active_skill("deep-thinking")
 
         result = soul_init.pre_llm_call_hook(
-            session_id="test_session",
+            session_id="test_session_skill",
             user_message="分析这个漏洞",
             conversation_history=[],
             is_first_turn=False,
@@ -82,16 +82,18 @@ class TestPreLlmCallLayer05:
             platform="custom",
         )
 
-        # Layer 0.5 should skip injection
-        assert result is None, \
-            "Layer 0.5 should skip injection when active_skill is whitelisted"
+        # active_skill 不再阻断注入
+        assert result is not None, \
+            "active_skill set no longer blocks injection"
+        assert "context" in result, \
+            "Result should contain 'context' key"
 
     def test_pre_llm_call_injects_after_active_skill_cleared(self, soul_init):
         """active_skill cleared → Layer 0.5 does not match → normal injection flow"""
         soul_init.set_active_skill(None)
 
         result = soul_init.pre_llm_call_hook(
-            session_id="test_session",
+            session_id="test_session_cleared",
             user_message="分析这个漏洞",
             conversation_history=[],
             is_first_turn=False,
@@ -111,7 +113,7 @@ class TestActiveSkillLifecycle:
     """Full lifecycle: skill_view → set → clear → re-inject."""
 
     def test_full_lifecycle(self, soul_init):
-        """Simulate real flow: skill_view → pre_llm_call → skill_view → pre_llm_call"""
+        """完整生命周期：注入 → skill_view → 清除 → 等级变化后重新注入"""
         session_id = "test_lifecycle"
         base_kwargs = dict(
             session_id=session_id,
@@ -121,7 +123,7 @@ class TestActiveSkillLifecycle:
             platform="custom",
         )
 
-        # Turn 1: User asks "分析漏洞"
+        # Turn 1: User asks "分析漏洞" → L2 注入
         result1 = soul_init.pre_llm_call_hook(
             user_message="分析这个漏洞", **base_kwargs
         )
@@ -150,13 +152,18 @@ class TestActiveSkillLifecycle:
         assert soul_init.get_active_skill() is None, \
             "post_tool_call should clear active_skill"
 
-        # Turn 2: AI still working on same task
+        # Turn 2: 等级变化（L2→L4）触发重新注入
+        soul_init.analyze_task.return_value = {
+            "success": True, "task_level": "L4",
+            "workflow_name": None, "write_operation": True,
+            "code_guidance": False, "agent_pool": True,
+            "skill_usage": True, "self_improving": False,
+        }
         result2 = soul_init.pre_llm_call_hook(
-            user_message="继续分析", **base_kwargs
+            user_message="同意执行方案", **base_kwargs
         )
-        # 🔴 RED: currently None because Layer 0.5 still blocks
         assert result2 is not None, \
-            "Turn 2: should still inject L2 context (task not done)"
+            "Turn 2: level change (L2→L4) should trigger re-injection"
         assert "context" in result2
 
 
@@ -180,7 +187,7 @@ class TestWhitelistAndInjectionCoexistence:
             "Whitelisted skill should pass pre_tool_call (no error)"
 
     def test_injection_resumes_after_skill_view_completes(self, soul_init):
-        """Full cycle: inject → skill_view → clear → inject again"""
+        """完整周期：注入 L2 → skill_view → 清除 → 等级变化 L4 → 重新注入"""
         session_id = "test_resume"
         base_kwargs = dict(
             session_id=session_id,
@@ -209,12 +216,18 @@ class TestWhitelistAndInjectionCoexistence:
             session_id=session_id,
         )
 
-        # Phase 2: Next turn should inject again
+        # Phase 2: 等级变化（L2→L4）应触发重新注入
+        soul_init.analyze_task.return_value = {
+            "success": True, "task_level": "L4",
+            "workflow_name": None, "write_operation": True,
+            "code_guidance": False, "agent_pool": True,
+            "skill_usage": True, "self_improving": False,
+        }
         result2 = soul_init.pre_llm_call_hook(
-            user_message="继续", **base_kwargs
+            user_message="同意执行方案", **base_kwargs
         )
         assert result2 is not None, \
-            "Phase 2: should inject again after active_skill cleared"
+            "Phase 2: level change (L2→L4) should trigger re-injection"
         assert "context" in result2
 
     def test_concurrent_skills_dont_interfere(self, soul_init):

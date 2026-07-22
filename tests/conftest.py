@@ -40,6 +40,11 @@ def _load_and_register(pkg_name, mod_name, file_path):
     sys.modules[full_name] = mod
     spec.loader.exec_module(mod)
 
+    # 将子模块设为父包的属性，使 `import pkg.sub` 能正确绑定
+    parent = sys.modules.get(pkg_name)
+    if parent:
+        setattr(parent, mod_name, mod)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _synthetic_package():
@@ -60,34 +65,34 @@ def state():
     return soul_context_injector.state
 
 
-# ========== 插件 __init__ Mock Fixture ==========
-
 @pytest.fixture
 def soul_init():
     """加载 __init__.py 并用 Mock 替换 _lazy_imports 的依赖。
 
     __init__.py 使用 _lazy_imports() 延迟导入子模块。
-    本 fixture 在调用前设置好所有全局变量，避免相对导入失败。
+    本 fixture 在调用前通过 importlib 确保合成包存在，使相对导入成功。
     """
     _ensure_synthetic_package()
 
-    # 先加载子模块
+    # 先确保子模块已加载
+    import importlib
     import soul_context_injector.state as state_mod
     import soul_context_injector.constants as constants_mod
-    import soul_context_injector.interceptor as interceptor_mod
+    importlib.reload(state_mod)  # 重置状态（_injected_levels 等）
 
-    # 使用 importlib 加载 __init__
+    # 加载 __init__
     spec = importlib.util.spec_from_file_location(
         "soul_context_injector.__init__",
         PLUGIN_DIR / "__init__.py"
     )
     init_mod = importlib.util.module_from_spec(spec)
     sys.modules["soul_context_injector.__init__"] = init_mod
+    spec.loader.exec_module(init_mod)
 
-    # 手动设置 _lazy_imports 会设置的全局变量
-    init_mod.set_active_skill = state_mod.set_active_skill
-    init_mod.get_active_skill = state_mod.get_active_skill
-    init_mod.is_skill_in_whitelist = state_mod.is_skill_in_whitelist
+    # 覆盖 _lazy_imports 会设置的全局变量
+    # 保留真正的 set_active_skill / get_active_skill（有状态，需要真实行为）
+    # 覆盖 is_skill_in_whitelist 为确定行为
+    init_mod.is_skill_in_whitelist = lambda name: bool(name) if name else False
     init_mod.analyze_task = MagicMock(return_value={
         "success": True,
         "task_level": "L2",
@@ -104,25 +109,9 @@ def soul_init():
     init_mod.build_error_message = MagicMock(return_value="")
     init_mod.check_workflow_completion = MagicMock(return_value=None)
     init_mod.is_subagent = MagicMock(return_value=False)
-
-    spec.loader.exec_module(init_mod)
-
-    # 执行完成后用我们的 Mock 覆盖
-    init_mod.set_active_skill = state_mod.set_active_skill
-    init_mod.get_active_skill = state_mod.get_active_skill
-    init_mod.is_skill_in_whitelist = state_mod.is_skill_in_whitelist
-    init_mod.analyze_task = MagicMock(return_value={
-        "success": True,
-        "task_level": "L2",
-        "workflow_name": None,
-        "write_operation": False,
-        "code_guidance": True,
-        "agent_pool": False,
-        "skill_usage": True,
-        "self_improving": False,
-    })
-    init_mod.build_context = MagicMock(return_value="[SOUL] L2 context injected")
-    init_mod.is_subagent = MagicMock(return_value=False)
     init_mod.logger = MagicMock()
+
+    # 重置 active_skill 状态
+    state_mod.set_active_skill(None)
 
     yield init_mod

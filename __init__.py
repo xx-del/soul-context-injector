@@ -60,6 +60,7 @@ except ImportError:
 def _lazy_imports():
     """延迟导入模块，避免循环导入问题"""
     global set_active_skill, get_active_skill, is_skill_in_whitelist
+    global get_last_injected_level, set_last_injected_level
     global analyze_task, build_context
     global is_dangerous_command, log_violation, build_error_message
     global check_workflow_completion, is_subagent
@@ -69,6 +70,8 @@ def _lazy_imports():
             set_active_skill,
             get_active_skill,
             is_skill_in_whitelist,
+            get_last_injected_level,
+            set_last_injected_level,
         )
         from .analyzer import analyze_task
         from .context_builder import build_context
@@ -115,12 +118,6 @@ def pre_llm_call_hook(
         logger.info(f"[SOUL] 子 agent 放行（LLM）: session={session_id}")
         return None
 
-    # Layer 0.5: 白名单技能已加载 → 跳过注入（防止重复注入）
-    active_skill = get_active_skill()
-    if active_skill and is_skill_in_whitelist(active_skill):
-        logger.info(f"[SOUL] 白名单技能已加载，跳过注入: {active_skill}")
-        return None
-    
     logger.debug(f"[soul] 处理消息: {user_message[:100]}...")
     
     try:
@@ -128,6 +125,13 @@ def pre_llm_call_hook(
         decision = analyze_task(user_message)
         task_level = decision.get("task_level", "L1")
         workflow_name = decision.get("workflow_name")
+        
+        # Layer 0.5: 同等级跳过重复注入（替代原 whitelist+active_skill 检查）
+        last_level = get_last_injected_level(session_id)
+        if task_level == last_level:
+            logger.debug(f"[SOUL] 等级未变({task_level})，跳过重复注入")
+            return None
+        set_last_injected_level(session_id, task_level)
         
         # 2. L4 处理：大模型自主判断是否执行方案
         # 方案路径由大模型从上下文中判断，不再通过代码查找
