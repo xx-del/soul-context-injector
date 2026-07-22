@@ -250,3 +250,23 @@ class TestWhitelistAndInjectionCoexistence:
         # B should be cleared
         assert soul_init.get_active_skill() is None, \
             "Completed skill should be cleared"
+
+
+class TestLevelTracking:
+    """get_last_injected_level / set_last_injected_level 基本功能。"""
+
+    def test_get_set_last_injected_level(self, state):
+        """set 后 get 应返回相同值"""
+        state.set_last_injected_level("session_1", "L2")
+        assert state.get_last_injected_level("session_1") == "L2"
+
+    def test_get_unset_session_returns_none(self, state):
+        """未设置的 session 应返回 None"""
+        assert state.get_last_injected_level("unknown_session") is None
+
+    def test_multiple_sessions_independent(self, state):
+        """不同 session 的等级不影响"""
+        state.set_last_injected_level("s1", "L2")
+        state.set_last_injected_level("s2", "L4")
+        assert state.get_last_injected_level("s1") == "L2"
+        assert state.get_last_injected_level("s2") == "L4"
