@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.10.0] - 2026-07-22
+
+### Changed
+- **等级追踪注入**：用 session-level 等级追踪替代 active_skill+whitelist 跳过逻辑
+  - pre_llm_call: 始终执行 analyze_task，仅在等级未变时跳过注入
+  - post_llm_call: 使用最新注入等级而非追踪器旧等级
+  - 解决：等级转换（L2→L3→L4）时新规则被白名单阻断的问题
+- **新增函数**：state.get_last_injected_level() / state.set_last_injected_level()
+
+### Fixed
+- post_tool_call 清除 active_skill 后 pre_llm_call 的等级转换检测
+
 ## [5.9.1] - 2026-06-07
 
 ### Fixed
