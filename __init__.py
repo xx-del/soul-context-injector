@@ -312,21 +312,23 @@ def post_llm_call_hook(**kwargs) -> Optional[Dict[str, str]]:
     
     # 获取追踪器
     tracker = get_tracker(session_id)
-    if not tracker:
-        return None
     
-    task_level = tracker.get("task_level")
+    # 优先使用最新注入等级（即使没有追踪器）
+    task_level = get_last_injected_level(session_id) or (tracker.get("task_level") if tracker else None)
+    
+    if not task_level:
+        return None
     
     # 只处理 L2/L3/L4 任务
     if task_level not in ["L2", "L3", "L4"]:
         return None
     
-    # 检查任务是否完成
-    completed = _check_completion(tracker)
-    
-    if completed:
-        logger.debug(f"[SOUL] 任务已完成，不再注入: session={session_id}, level={task_level}")
-        return None
+    # 检查任务是否完成（只有有追踪器时才检查）
+    if tracker:
+        completed = _check_completion(tracker)
+        if completed:
+            logger.debug(f"[SOUL] 任务已完成，不再注入: session={session_id}, level={task_level}")
+            return None
     
     # 任务未完成，重新注入约束
     logger.info(f"[SOUL] 任务未完成，重新注入约束: session={session_id}, level={task_level}")

@@ -98,3 +98,25 @@ class TestLevelTransitionInjection:
             platform="custom",
         )
         assert result is None, "子 agent 应放行"
+
+
+class TestPostLlmCallLevelAware:
+    """post_llm_call_hook 应使用最新注入等级，而非追踪器旧等级。"""
+
+    def test_post_llm_call_uses_latest_injected_level(self, soul_init):
+        """post_llm_call 使用 get_last_injected_level 而非 tracker"""
+        session_id = "test_post_llm_latest_level"
+
+        # 设置最新注入等级为 L4
+        soul_init.set_last_injected_level(session_id, "L4")
+
+        result = soul_init.post_llm_call_hook(
+            session_id=session_id,
+            conversation_history=[],
+            model="deepseek-v4-flash",
+            platform="custom",
+        )
+
+        # Should inject L4 constraint (not L2 from stale tracker)
+        assert result is not None
+        assert "context" in result
