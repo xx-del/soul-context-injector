@@ -7,6 +7,11 @@ __pycache__/
 # Backup files
 *.bk
 *.backup
+*.bak*
+*.broken*
+
+# Backup directory
+.backup/
 
 # IDE
 .idea/
