@@ -19,9 +19,6 @@ from pathlib import Path
 from .constants import (
     logger,
     DANGEROUS_PATTERNS,
-    WRITE_PATTERNS,
-    WRITE_TOOLS,
-    PLANNING_FILES,
     CONFIRM_KEYWORDS,
     VIOLATIONS_LOG,
 )
@@ -72,18 +69,6 @@ def log_violation(violation_type: str, tool_name: str, args: dict, task_id: str)
         logger.warning(f"[SOUL] 违规操作已记录: [{violation_type}] {tool_name}")
     except Exception as e:
         logger.error(f"[SOUL] 记录违规失败: {e}")
-
-
-# ============ 文件检查 ============
-
-def is_planning_file(path: str) -> bool:
-    """检查是否为规划性文件"""
-    import os
-    filename = os.path.basename(path).lower()  # 提取文件名再匹配
-    for pattern in PLANNING_FILES:
-        if fnmatch(filename, pattern.lower()):
-            return True
-    return False
 
 
 # ============ 危险命令检测 ============
@@ -157,35 +142,6 @@ def is_dangerous_command(command: str) -> bool:
         return True
     
     # 5. 其他命令 - 放行
-    return False
-
-
-# ============ 写入操作检测 ============
-
-def is_write_operation(tool_name: str, command: str, args: dict = None) -> bool:
-    """检查是否为增删改操作（需要执行认证）- 支持规划文件白名单"""
-    args = args or {}
-    
-    # write_file 和 patch - 检查是否为规划文件
-    if tool_name in WRITE_TOOLS:
-        path = args.get("path", "")
-        if is_planning_file(path):
-            logger.info(f"[SOUL] 规划文件写入豁免: {path}")
-            return False
-        return True
-    
-    # terminal 增删改命令 - 使用更精确的匹配
-    if tool_name == "terminal":
-        command_lower = command.lower().strip()
-        
-        # 使用单词边界匹配，避免误报
-        for pattern in WRITE_PATTERNS:
-            pattern_clean = pattern.strip()
-            # 匹配命令开头或分号/&&/||后的命令
-            regex = rf'(^|[;&|]\s*){re.escape(pattern_clean)}(\s|$)'
-            if re.search(regex, command_lower):
-                return True
-    
     return False
 
 

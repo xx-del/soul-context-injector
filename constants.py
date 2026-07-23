@@ -50,51 +50,6 @@ DANGEROUS_PATTERNS = [
     # 包括：远程代码执行攻击、磁盘破坏、系统文件破坏、根目录破坏等
 ]
 
-# 增删改命令 - 需要执行认证
-WRITE_PATTERNS = [
-    # 文件操作
-    "rm ", "rm -", "mv ", "cp ", "mkdir ", "touch ", "rmdir ",
-    "ln ", "truncate", "unlink", "tee ",
-    
-    # 打包解压
-    "tar ", "unzip ", "gzip ", "gunzip ", "zip ",
-    "xz ", "bzip2 ", "7z ",
-    
-    # 下载写入
-    "curl -o", "curl -O", "wget -o", "wget -O",
-    "scp ", "rsync ",
-    
-    # Git 操作
-    "git push", "git commit", "git add",
-    "git rm", "git mv", "git reset",
-    
-    # 包管理
-    "pip install", "pip uninstall",
-    "npm install", "npm uninstall", "npm update",
-    "yarn add", "yarn remove",
-    "apt install", "apt remove", "apt purge",
-    "dnf install", "dnf remove",
-    "yum install", "yum remove",
-    "pacman -S", "pacman -R",
-    "brew install", "brew uninstall",
-    
-    # 系统服务
-    "systemctl start", "systemctl stop", "systemctl restart",
-    "systemctl enable", "systemctl disable",
-    "service start", "service stop", "service restart",
-    "docker run", "docker rm", "docker stop", "docker rmi",
-    "docker-compose up", "docker-compose down",
-    
-    # 权限修改
-    "chmod ", "chown ",
-    
-    # 配置修改
-    "crontab", "sysctl -w",
-]
-
-# 增删改工具 - 需要执行认证
-WRITE_TOOLS = {"write_file", "patch"}
-
 # 输出类工具 - 需要技能调用检查
 OUTPUT_TOOLS = {
     "send_message",      # Telegram/Discord/Slack 消息
@@ -102,17 +57,6 @@ OUTPUT_TOOLS = {
     "execute_code",      # Python 代码执行（可能输出结果）
     "terminal",          # 终端命令（可能输出结果）
 }
-
-# 规划性文件（L3 阶段允许写入，不触发认证）
-PLANNING_FILES = [
-    'execution_plan.md',
-    'task_plan.md',
-    'findings.md',
-    'progress.md',
-    '*方案*.md',
-    '*规划*.md',
-    '*计划*.md'
-]
 
 # 技能绑定映射
 SKILL_BINDINGS = {
@@ -123,10 +67,29 @@ SKILL_BINDINGS = {
 }
 
 # 技能白名单 - 白名单内技能执行的所有操作跳过认证
-SKILL_WHITELIST = _plugin_config.get(
+# 支持三种模式:
+#   "all"     → 所有已安装技能（默认）
+#   false     → 关闭白名单
+#   [列表]    → 只指定这些技能
+SKILL_WHITELIST_RAW = _plugin_config.get(
     'skill_whitelist',
-    ["workflow-manager", "agent-pool", "planning-with-files"]
+    'all'
 )
+
+# 解析白名单模式
+SKILL_WHITELIST_MODE = None  # 'all', 'list', 'disabled'
+SKILL_WHITELIST = []         # list 模式下的具体技能列表
+
+if isinstance(SKILL_WHITELIST_RAW, str) and SKILL_WHITELIST_RAW.lower() == 'all':
+    SKILL_WHITELIST_MODE = 'all'
+elif SKILL_WHITELIST_RAW is False or SKILL_WHITELIST_RAW == 'disabled':
+    SKILL_WHITELIST_MODE = 'disabled'
+elif isinstance(SKILL_WHITELIST_RAW, list):
+    SKILL_WHITELIST_MODE = 'list'
+    SKILL_WHITELIST = SKILL_WHITELIST_RAW
+else:
+    # 回退默认
+    SKILL_WHITELIST_MODE = 'all'
 
 # 确认词 - 用户确认执行方案
 # 注意："执行"已恢复，通过analyzer.py的上下文判断区分语义（确认方案 vs 执行新任务）
