@@ -2,6 +2,11 @@
 Soul Context Injector - 子 Agent 检测模块
 
 通过 session_id 查询数据库判断是否为子 agent（存在 parent_session_id）
+
+注意：子 agent 文件持久化问题（write_file 不写入真实文件系统）
+已在 subagent-driven-development SKILL.md 中记录。
+解决方案：子 agent 创建文件后由父 agent 用 terminal("ls") 验证。
+不在 soul 插件层处理（Hermes 框架层问题）。
 """
 
 import logging
