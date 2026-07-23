@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.11.0] - 2026-07-23
+
+### Fixed
+- **plugin.yaml hooks 补齐**：新增 post_llm_call hook 声明（代码已注册，配置缺失）
+- **L2 flow_locked=True**：强制 L2 任务调用 deep-thinking，防止分析流于表面
+- **删除死代码**：移除 is_write_operation / WRITE_PATTERNS / PLANNING_FILES / is_planning_file（零引用，L3 写入拦截已移除后残留）
+
+### Chores
+- 存档 32 个备份文件到 .backup/（bak/backup/broken + 3 个备份目录 + 9 个 prompt 备份）
+- 更新 .gitignore：新增 *.bak* / *.broken* / .backup/ 模式
+- 子 agent 文件持久化问题说明文档（参见 subagent-driven-development SKILL.md）
+
 ## [5.10.0] - 2026-07-22
 
 ### Changed
