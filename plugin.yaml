@@ -24,6 +24,7 @@ hooks:
   - pre_llm_call    # LLM 调用前注入上下文
   - pre_tool_call   # 工具调用前拦截危险命令
   - post_tool_call  # 工具调用后清理
+  - post_llm_call   # LLM 调用后持续注入约束
 
 # 配置选项
 config:
