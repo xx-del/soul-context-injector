@@ -50,7 +50,7 @@ def build_phase_info(task_level: str) -> dict:
         return {
             "current_phase": "Phase 0",
             "phase_step": "Step 1",
-            "flow_locked": False  # 不锁定
+            "flow_locked": True  # 强制 deep-thinking
         }
     return {
         "current_phase": None,
