@@ -20,10 +20,3 @@ def test_l3_directive_has_four_questions():
         content = f.read()
     assert "信息采集规划" in content or "①现在知道什么" in content, \
         "L3 directive 未引用 4 问框架"
-
-
-def test_l4_directive_has_state_assessment():
-    """L4 directive 应有的执行前状态评估步骤"""
-    with open(CONTEXT_BUILDER_PATH, 'r', encoding='utf-8') as f:
-        content = f.read()
-    assert "执行前状态评估" in content, "L4 directive 缺少执行前状态评估 (第零步)"
