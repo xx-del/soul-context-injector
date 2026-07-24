@@ -161,11 +161,9 @@ def build_l2_directive(session_id: str) -> str:
 ⚠️  强制约束（必须严格遵守）
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. 【第一步】初次思考 — 信息采集规划
+1. 【第一步】初次思考
    - 调用 skill_view(name="deep-thinking")
-   - 重点思考四个问题：
-     ①现在知道什么？②还需要什么？③从哪高效拿？④什么顺序最省力？
-   - 想清楚再动手，不要急于执行
+   - 思考需要什么信息、如何分析
 
 2. 【第二步】信息搜集
    - 按需读取文件
@@ -209,8 +207,6 @@ def build_l3_directive(session_id: str) -> str:
    - 无则执行步骤 2
 
 2. 【第二步】调用 skill_view(name="deep-thinking") 执行分析
-   - 重点执行信息采集规划：①现在知道什么？②还需要什么？③从哪高效拿？④什么顺序最省力？
-   - 想清楚再动手，不要急于执行
 
 3. 【第三步】调用 skill_view(name="openclaw-behavior-plan") 生成方案
 
