@@ -216,7 +216,8 @@ class LocalRuleClient:
         "L2": [
             "分析", "比较", "评估", "设计", "优化", "思考", "为什么", "怎么",
             "制定", "规划", "方案", "研究", "探讨", "推导", "计算", "总结",
-            "判断", "诊断", "解析", "理解", "归纳", "对比", "改进", "建议"
+            "判断", "诊断", "解析", "理解", "归纳", "对比", "改进", "建议",
+            "看一下", "read", "what", "how"
         ],
         "L3": ["创建", "修改", "删除", "部署", "重启", "安装", "卸载", "配置", "写入", "帮我做"]
     }
@@ -308,17 +309,23 @@ class LocalRuleClient:
             # 继续到下面的关键词判断逻辑（不再直接return "L3"）
         
         # 2. 执行类关键词 → L3（实际执行）
-        exec_kws = ["创建", "实施", "执行", "部署", "安装", "卸载", "修改", "删除", "写入", "create", "implement", "deploy"]
+        exec_kws = ["创建", "实施", "执行", "部署", "安装", "卸载", "修改", "删除", "写入", "create", "implement", "deploy",
+                     "修复", "实现", "改造", "构建", "生成", "替换", "迁移",
+                     "fix", "implement", "create", "build", "generate", "replace", "migrate"]
         if any(kw in lower for kw in exec_kws):
             return "L3"
         
         # 3. 规划类关键词 → L2（分析规划，非执行）
-        planning_kws = ["制定方案", "规划", "分析", "评估", "设计", "生成计划", "写方案", "帮我做"]
+        planning_kws = ["制定方案", "规划", "分析", "评估", "设计", "生成计划", "写方案", "帮我做",
+                         "找出", "检查", "验证", "排查", "核对", "处理", "定位",
+                         "analyze", "check", "find", "verify", "debug", "review"]
         if any(kw in lower for kw in planning_kws):
             return "L2"
         
-        # 4. 简单查询 → 匹配关键词表
-        for level, keywords in self.TASK_KEYWORDS.items():
+        # 4. 简单查询 → 匹配关键词表（优先级：L2 > L0 > L1 > L3）
+        priority_order = ["L2", "L0", "L1", "L3"]
+        for level in priority_order:
+            keywords = self.TASK_KEYWORDS.get(level, [])
             if any(kw in lower for kw in keywords):
                 return level
         
