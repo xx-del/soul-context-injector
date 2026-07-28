@@ -139,6 +139,35 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+# ============ 工作流名称获取 ============
+
+def get_workflow_names() -> list:
+    """获取所有活跃工作流名称列表"""
+    workflows_dir = Path.home() / ".hermes" / "workflows"
+    index_path = workflows_dir / "_index.yaml"
+    
+    if not index_path.exists():
+        return []
+    
+    try:
+        with open(index_path, 'r', encoding='utf-8') as f:
+            index = yaml.safe_load(f)
+        
+        if not index or 'workflows' not in index:
+            return []
+        
+        names = []
+        for wf in index.get('workflows', []):
+            if wf.get('status') == 'active':
+                name = wf.get('name', '')
+                if name:
+                    names.append(name)
+        return names
+    except Exception as e:
+        logger.warning(f"[soul] 获取工作流名称失败: {e}")
+        return []
+
+
 # ============ 技能意图检测 ============
 
 # 默认技能白名单（降级时使用）

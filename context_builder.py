@@ -449,37 +449,20 @@ def build_ollama_prompt(user_message: str) -> str:
     
     # 构建 phase_context
     phase_context_parts = []
-    
-    # 注释原因：工作流任务已在 analyze_task() 第一层被 detect_workflow_local() 拦截
-    # 工作流任务永远不会走到 Ollama 分析路径，注入工作流列表是无意义代码
-    # 原代码调用的 get_workflow_names() 函数也不存在
-    # 
-    # try:
-    #     from .analyzer import get_workflow_names
-    #     workflow_names = get_workflow_names()
-    #     if workflow_names:
-    #         phase_context_parts.append("## 工作流名称列表（用于精确匹配）\n")
-    #         phase_context_parts.append("如果用户消息完全匹配以下任一名称，则 workflow_name 填写该名称，task_level 填写 \"L1\"。\n\n")
-    #         for name in workflow_names[:20]:  # 限制前20个，避免过长
-    #             phase_context_parts.append(f"- {name}\n")
-    #         phase_context_parts.append("\n")
-    # except Exception as e:
-    #     logger.warning(f"[soul] 获取工作流名称失败: {e}")
-    
-    # 删除原因：L4 方案检查由大模型从上下文中判断，不需要代码检查本地文件
-    # 规则说明（l4.md Phase 0）：检查对话历史中上文是否有该任务描述一致的 execution_plan.md
-    # 这是对话上下文检查，不是文件系统检查，应该由大模型在推理时完成
-    #
-    # # 2. Pending 方案状态
-    # try:
-    #     from .interceptor import find_execution_plan
-    #     plan_path = find_execution_plan()
-    #     if plan_path and plan_path.exists():
-    #         phase_context_parts.append("## ⚠️ Pending 方案状态\n\n")
-    #         phase_context_parts.append("**已有待执行方案**：如果用户消息是确认词（同意/好的/可以/批准/确认/执行/需要/没问题），则 task_level=\"L4\"。\n\n")
-    # except Exception as e:
-    #     logger.warning(f"[soul] 检查方案状态失败: {e}")
-    
+
+    # 1. 注入活跃工作流名称（供 Ollama 精确匹配）
+    try:
+        from .analyzer import get_workflow_names
+        workflow_names = get_workflow_names()
+        if workflow_names:
+            phase_context_parts.append("## 工作流名称列表（用于精确匹配）\n")
+            phase_context_parts.append("如果用户消息完全匹配以下任一名称，则 workflow_name 填写该名称，task_level 填写 \"L1\"。\n\n")
+            for name in workflow_names[:20]:
+                phase_context_parts.append(f"- {name}\n")
+            phase_context_parts.append("\n")
+    except Exception as e:
+        logger.warning(f"[soul] 获取工作流名称失败: {e}")
+
     phase_context = "".join(phase_context_parts) if phase_context_parts else ""
     
     if not prompt_path.exists():
