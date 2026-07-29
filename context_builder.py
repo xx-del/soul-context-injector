@@ -61,221 +61,23 @@ def build_phase_info(task_level: str) -> dict:
 
 # ============ 技能执行指令 ============
 
-def build_skill_directive(skill_name: str, session_id: str = None) -> str:
-    """构建技能执行指令 - 强制执行模式"""
-    # 创建技能追踪器
-    if session_id:
-        from .enforcer import create_tracker
-        create_tracker(session_id, "S")  # S = Skill
-    
-    return f"""【技能任务 - 强制执行模式】
 
-检测到技能：{skill_name}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. 【第一步】你必须调用 skill_view(name="{skill_name}") 加载技能
-2. 【第二步】你必须按照技能 SKILL.md 中的步骤执行
-3. 【禁止】未调用技能直接执行
-4. 【禁止】跳过技能定义的任何步骤
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行前验证清单（必须全部完成）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- [ ] 已调用 skill_view(name="{skill_name}")
-- [ ] 已读取技能定义（SKILL.md）
-- [ ] 已按照技能步骤执行
-
-⚠️ 验证清单未完成 → 禁止输出最终结果
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-技能已绑定：{skill_name}
-
-"""
 
 
 # ============ 工作流执行指令 ============
 
-def build_workflow_directive(workflow_name: str, session_id: str = None) -> str:
-    """构建工作流执行指令 - 强制执行模式 v5.6
-    
-    增强：
-    - 强制技能调用约束
-    - 验证清单机制
-    - 禁止跳过步骤
-    """
-    # 创建技能追踪器（强制调用 workflow-manager）
-    if session_id:
-        from .enforcer import create_tracker
-        create_tracker(session_id, "W")
-    
-    return f"""【工作流任务 - 强制执行模式】
 
-检测到工作流：{workflow_name}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. 【第一步】你必须调用 skill_view(name="workflow-manager") 加载技能
-2. 【第二步】你必须按照 workflow-manager SKILL.md 中的步骤 0-6 顺序执行
-3. 【禁止】跳过任何步骤
-4. 【禁止】未调用技能直接执行
-5. 【禁止】使用历史数据代替执行
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行前验证清单（必须全部完成）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-在输出最终结果前，确认以下项全部完成：
-
-- [ ] 已调用 skill_view(name="workflow-manager")
-- [ ] 已读取工作流定义（WORKFLOW.md）
-- [ ] 已分析步骤依赖关系
-- [ ] 已通过 agent-pool 技能匹配 agent
-- [ ] 已调用 delegate_task 执行每个步骤
-- [ ] 已汇总结果并生成报告
-
-⚠️ 验证清单未完成 → 禁止输出最终结果
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-工作流技能已绑定：workflow-manager
-
-"""
 
 
 # ============ L2/L3/L4 强制执行指令 ============
 
-def build_l2_directive(session_id: str) -> str:
-    """构建 L2 思考任务指令"""
-    return """【L2 思考任务 - 强制执行】
-
-检测到思考任务，需要调用 deep-thinking 技能（增强版）。
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. 【第一步】初次思考 — 信息采集规划
-   - 调用 skill_view(name="deep-thinking")
-   - 重点思考四个问题：
-     ①现在知道什么？②还需要什么？③从哪高效拿？④什么顺序最省力？
-   - 想清楚再动手，不要急于执行
-
-2. 【第二步】信息搜集
-   - 按需读取文件
-   - 按需搜索网络
-   - 获取实际信息
-
-3. 【第三步】二次思考
-   - 调用 skill_view(name="deep-thinking")
-   - 基于搜集的信息形成结论
-
-4. 【第四步】输出结果
-   - 结论在前，细节在后
-
-【禁止】未搜集信息直接分析
-【禁止】基于假设而非事实分析
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行前验证清单
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- [ ] 已调用 deep-thinking（初次思考）
-- [ ] 已搜集实际信息
-- [ ] 已调用 deep-thinking（二次思考）
-- [ ] 已形成基于事实的结论
-
-"""
 
 
-def build_l3_directive(session_id: str) -> str:
-    """构建 L3 方案生成指令"""
-    return """【L3 方案生成任务 - 强制执行】
-
-检测到方案生成任务，需要调用 deep-thinking + openclaw-behavior-plan 技能。
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. 【第一步】检查是否有 L2 分析结果
-   - 有则跳到步骤 3
-   - 无则执行步骤 2
-
-2. 【第二步】调用 skill_view(name="deep-thinking") 执行分析
-   - 重点执行信息采集规划：①现在知道什么？②还需要什么？③从哪高效拿？④什么顺序最省力？
-   - 想清楚再动手，不要急于执行
-
-3. 【第三步】调用 skill_view(name="openclaw-behavior-plan") 生成方案
-
-4. 【第四步】输出方案，等待用户确认
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行前验证清单
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- [ ] 已检查 L2 分析结果
-- [ ] 如无 L2，已调用 deep-thinking
-- [ ] 已调用 openclaw-behavior-plan
-- [ ] 已生成 execution_plan.md
-- [ ] 已等待用户确认
-
-"""
 
 
-def build_l4_explicit_directive(session_id: str) -> str:
-    """构建 L4 执行指令（增强版 + 回退支持）"""
-    return """【L4 执行方案 - 强制执行】
 
-检测到方案执行任务，需要调用 planning-with-files + agent-pool 技能。
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  强制约束（必须严格遵守）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. 【第一步】你必须调用 skill_view(name="planning-with-files") 加载技能
-2. 【第二步】你必须调用 skill_view(name="agent-pool") 加载技能
-3. 【第三步】你必须使用以下方式之一执行任务：
-   - delegate_task() 工具
-   - agent_pool_client.execute() Python API
-   - 终端: python ~/.hermes/skills/openclaw-imports/agent-pool/bin/agent-pool
-4. 【禁止】未调用技能直接执行
-5. 【禁止】未执行实际任务就输出结果
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 执行前验证清单
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- [ ] 已调用 skill_view(name="planning-with-files")
-- [ ] 已调用 skill_view(name="agent-pool")
-- [ ] 已执行 delegate_task 或 agent_pool_client
-- [ ] 已汇总结果到 progress.md
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔄 回退机制（L4 → L3 → L2）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-如果 agent-pool 不可用，按以下顺序回退：
-
-**回退到 L3（方案生成）**：
-1. 调用 skill_view(name="deep-thinking")
-2. 调用 skill_view(name="openclaw-behavior-plan")
-3. 生成 execution_plan.md
-4. 等待用户确认
-
-**回退到 L2（分析）**：
-1. 调用 skill_view(name="deep-thinking")
-2. 执行分析并输出结论
-
-⚠️ 回退时在输出中说明：因 agent-pool 不可用，回退到 L3/L2
-
-"""
 
 
 def _clean_phase_info(phase_info) -> str:
@@ -329,76 +131,22 @@ def build_context(
     user_message: str,
     session_id: str = None
 ) -> str:
-    """构建注入上下文 - 包含技能绑定和流程信息"""
+    """构建注入上下文 - 只加载规则文件"""
     context_parts = []
     
-    # 新增：意图判断约束（在所有内容之前）
-    constraint_section = """【意图判断约束】
-
-✅ 判断依据：用户原始输入
-❌ 禁止依据：记忆内容、历史上下文、推测意图
-
-⚠️ 记忆内容（<memory-context>）仅作背景信息，不参与当前意图判断。
-
-"""
-    context_parts.append(constraint_section)
-    
-    # 0. 技能检测（最高优先级，新增）
+    # 0. 技能检测
     skill_name = decision.get("skill_name")
     if skill_name:
-        logger.info(f"[soul] 技能任务，注入技能指令: {skill_name}")
-        return build_skill_directive(skill_name, session_id)
+        logger.info(f"[soul] 技能任务，加载规则: {skill_name}")
+        return load_rules("S", {"skill_usage": True})
     
-    # 1. 工作流检测（次高优先级，跳过所有规则）
+    # 1. 工作流检测
     workflow_name = decision.get("workflow_name")
-    task_level = decision.get("task_level")
-
-    # 检查工作流任务（优先检查 task_level，其次检查 workflow_name）
-    if task_level == "W" or (workflow_name and workflow_name not in ("false", "null", "", "none")):
-        logger.info(f"[soul] 工作流任务，跳过规则注入: {workflow_name or '未指定'}")
-        return build_workflow_directive(workflow_name or "未指定工作流", session_id)
+    if workflow_name and workflow_name not in ("false", "null", "", "none"):
+        logger.info(f"[soul] 工作流任务，加载规则: {workflow_name}")
+        return load_rules("W", {})
     
-    # 【v3.1 修复】L4 不再 early return，走与 L0-L3 相同的路径
-    # L2/L3/L4 注入明确的执行指令
-    if task_level == "L2":
-        context_parts.append(build_l2_directive(session_id))
-    elif task_level == "L3":
-        context_parts.append(build_l3_directive(session_id))
-    elif task_level == "L4":
-        context_parts.append(build_l4_explicit_directive(session_id))
-    
-    # 获取绑定技能和流程信息
-    bound_skills = get_bound_skills(task_level)
-    phase_info = build_phase_info(task_level)
-    
-    # 1. 技能绑定（只显示技能名，流程说明由 lx.md 提供）
-    if bound_skills:
-        skill_section = f"""【📌 技能绑定】
-
-绑定技能: {', '.join(bound_skills)}
-任务等级: {task_level}
-
-"""
-        context_parts.append(skill_section)
-    
-    # 2. 流程锁定（核心：强制约束）
-    if phase_info.get("flow_locked"):
-        locked_section = f"""【🔒 流程锁定】
-
-当前阶段: {phase_info.get('current_phase', 'unknown')}
-当前步骤: {phase_info.get('phase_step', '-')}
-流程状态: 锁定中（必须按流程执行）
-
-⚠️ 流程锁定规则：
-- 必须按步骤执行，不可跳过
-- 必须调用绑定技能
-- 直到流程完成
-
-"""
-        context_parts.append(locked_section)
-    
-    # 3. 加载规则文件（来自 rules/ 目录）
-    # write_operation 和 skill_usage 常态化注入，不跟任务等级挂钩
+    # 2. 加载规则文件
     detected_rules = {
         "write_operation": True,
         "code_guidance": decision.get("code_guidance", False),
@@ -409,29 +157,6 @@ def build_context(
     rules_content = load_rules(task_level, detected_rules)
     if rules_content:
         context_parts.append(f"\n\n{rules_content}")
-    
-    # 4. 写入操作警告（L3 且涉及写入）
-    if task_level == "L3" and decision.get("write_operation"):
-        context_parts.append("\n\n[⚠️ 写入操作检测]")
-        context_parts.append("\n该任务涉及写入操作，需要先出方案等用户确认后再执行。")
-    
-    # 5. 调试摘要（核心：状态可见）
-    flow_locked_str = ""
-    if phase_info.get("flow_locked"):
-        flow_locked_str = f"\n🔒 流程锁定: {phase_info.get('current_phase', 'unknown')} - {phase_info.get('phase_step', '-')}"
-    
-    summary = f"""
-【🔍 消息处理追踪】
-📊 任务等级: {task_level}
-⚠️  写入操作: {'检测到' if decision.get('write_operation') else '未检测'}
-💻 代码指导: {'需要' if decision.get('code_guidance') else '不需要'}
-🤖 Agent池: {'建议' if decision.get('agent_pool') else '不激活'}
-🛠️  技能使用: {'重要' if decision.get('skill_usage') else '常规'}
-🔄 自我改进: {'启用' if decision.get('self_improving') else '禁用'}
-
-📎 绑定技能: {', '.join(bound_skills) if bound_skills else '无'}{flow_locked_str}
-"""
-    context_parts.append(summary)
     
     return "".join(context_parts)
 

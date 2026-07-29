@@ -303,7 +303,7 @@ def post_llm_call_hook(**kwargs) -> Optional[Dict[str, str]]:
     - 确保 L4 任务持续看到约束
     """
     from .enforcer import get_tracker, _check_completion
-    from .context_builder import build_l4_explicit_directive, build_l3_directive, build_l2_directive
+    from .analyzer import load_rules
     
     # 从 kwargs 提取参数
     session_id = kwargs.get("session_id")
@@ -333,14 +333,16 @@ def post_llm_call_hook(**kwargs) -> Optional[Dict[str, str]]:
     # 任务未完成，重新注入约束
     logger.info(f"[SOUL] 任务未完成，重新注入约束: session={session_id}, level={task_level}")
     
-    # 根据任务等级构建约束
-    if task_level == "L4":
-        constraint = build_l4_explicit_directive(session_id)
-    elif task_level == "L3":
-        constraint = build_l3_directive(session_id)
-    elif task_level == "L2":
-        constraint = build_l2_directive(session_id)
-    else:
+    # 根据任务等级加载规则
+    detected_rules = {
+        "write_operation": True,
+        "code_guidance": False,
+        "agent_pool": False,
+        "skill_usage": True,
+        "self_improving": False,
+    }
+    constraint = load_rules(task_level, detected_rules)
+    if not constraint:
         return None
     
     # 注入约束上下文

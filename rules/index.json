@@ -6,7 +6,9 @@
     "L1": {"files": ["l1.md"], "description": "简单查询：读文件、单一搜索"},
     "L2": {"files": ["l2.md"], "description": "思考分析：分析、推理、创新"},
     "L3": {"files": ["l3.md"], "description": "出方案：基于分析生成执行方案"},
-    "L4": {"files": ["l4.md"], "description": "执行方案：任务分解、并行执行"}
+    "L4": {"files": ["l4.md"], "description": "执行方案：任务分解、并行执行"},
+    "W": {"files": ["w.md"], "description": "工作流任务：直接执行工作流"},
+    "S": {"files": ["s.md"], "description": "技能任务：调用并执行技能"}
   },
   "rule_categories": {
     "write_operation": {"files": ["write_rules.md"], "description": "写入操作规则"},
