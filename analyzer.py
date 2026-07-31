@@ -5,6 +5,7 @@ Soul Context Injector - 任务分析
 """
 
 import json
+import re
 import time
 import requests
 import yaml
@@ -175,12 +176,14 @@ DEFAULT_SKILL_WHITELIST = ["workflow-manager", "agent-pool", "planning-with-file
 
 
 def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
-    """技能意图检测（直接匹配白名单技能名）
+    """技能意图检测（显式指令匹配）
 
-    检测用户消息中是否包含白名单技能名称。
-    白名单技能直接执行（L0），跳过 Ollama 分析和思考流程。
-
-    all 模式下扫描所有已安装技能目录，list/disabled 模式使用配置列表。
+    仅当用户消息包含显式技能指令时命中（L0 直接执行）：
+    1. slash 命令：/技能名
+    2. 显式动词：使用/调用/执行/运行/加载/打开/启用 + 技能名
+    3. 消息以技能名开头（边界匹配）
+    排除分析/审查语境：分析/检查/审计/评估/对比/解释 + 技能名，
+    或 技能名 + 原理/问题/区别/架构/工作机制。
 
     Returns:
         匹配成功返回 decision 字典，否则返回 None
@@ -191,9 +194,8 @@ def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
         SKILL_WHITELIST = DEFAULT_SKILL_WHITELIST
         SKILL_WHITELIST_MODE = 'list'
 
-    msg_lower = user_message.lower()
-    # 去除 / 前缀，支持 /技能名 的 slash 命令格式
-    search_text = msg_lower.lstrip("/")
+    msg = user_message.strip()
+    msg_lower = msg.lower()
 
     # 确定要匹配的技能列表
     skills_to_check = SKILL_WHITELIST  # list 模式用配置列表
@@ -215,23 +217,72 @@ def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
                             if (sub / "SKILL.md").exists():
                                 skills_to_check.append(sub.name)
 
+    # 排除语境：技能名前有分析/审查动词，或技能名后跟原理/问题/区别
+    exclude_verbs = ["分析", "检查", "审计", "评估", "对比", "解释", "审阅", "排查",
+                     "analyze", "review", "check", "audit", "evaluate", "inspect"]
+    exclude_nouns = ["原理", "问题", "区别", "架构", "工作机制", "工作原理", "机制",
+                     "how", "what", "why", "architecture", "mechanism"]
+    # 显式动词（技能名前的指令动词）
+    explicit_verbs = ["使用", "调用", "执行", "运行", "加载", "打开", "启用",
+                      "use", "call", "run", "execute", "load", "open", "enable"]
+    # token 边界模式：前后不能是 [a-z0-9_-]（英文/数字/连字符/下划线），中文允许
+    # 防止 "agent-pool-manager" 命中 "agent-pool"，同时允许 "使用workflow-manager技能"
+
+    # 0. slash 命令快速路径：/技能名（显式调用，不受排除语境影响）
+    if msg_lower.startswith("/"):
+        slash_rest = msg_lower[1:].strip()
+        for skill_name in skills_to_check:
+            skill_lower = skill_name.lower()
+            token_pattern = rf'(?<![a-z0-9_\-]){re.escape(skill_lower)}(?![a-z0-9_\-])'
+            if re.match(token_pattern, slash_rest):
+                logger.info(f"[soul] 技能 slash 命令命中: {skill_name}")
+                return _skill_decision(skill_name)
+        return None
+
     for skill_name in skills_to_check:
-        if skill_name in search_text:
-            logger.info(f"[soul] 技能白名单命中: {skill_name}")
-            return {
-                "success": True,
-                "task_level": "L0",
-                "workflow_name": None,
-                "write_operation": False,
-                "code_guidance": False,
-                "agent_pool": False,
-                "skill_usage": True,
-                "self_improving": False,
-                "skill_name": skill_name,
-                "reason": f"技能白名单: {skill_name}",
-            }
+        skill_lower = skill_name.lower()
+        token_pattern = rf'(?<![a-z0-9_\-]){re.escape(skill_lower)}(?![a-z0-9_\-])'
+        match = re.search(token_pattern, msg_lower)
+        if not match:
+            continue
+
+        # 排除分析/审查语境
+        start, end = match.span()
+        before = msg_lower[:start].strip()
+        after = msg_lower[end:].strip()
+        excluded_by_before = any(v in before for v in exclude_verbs)
+        excluded_by_after = any(n in after for n in exclude_nouns)
+        if excluded_by_before or excluded_by_after:
+            continue
+
+        # 显式指令判定：
+        # a) 消息以技能名开头（无 slash 前缀，因为 slash 已在快速路径处理）
+        if start == 0:
+            logger.info(f"[soul] 技能名开头命中: {skill_name}")
+            return _skill_decision(skill_name)
+
+        # b) 显式动词 + 技能名（动词在技能名前，非排除动词）
+        if any(v in before for v in explicit_verbs):
+            logger.info(f"[soul] 技能显式指令命中: {skill_name}")
+            return _skill_decision(skill_name)
 
     return None
+
+
+def _skill_decision(skill_name: str) -> Dict[str, Any]:
+    """构建技能直接执行决策"""
+    return {
+        "success": True,
+        "task_level": "L0",
+        "workflow_name": None,
+        "write_operation": False,
+        "code_guidance": False,
+        "agent_pool": False,
+        "skill_usage": True,
+        "self_improving": False,
+        "skill_name": skill_name,
+        "reason": f"技能白名单: {skill_name}",
+    }
 
 
 # ============ 本地规则客户端 ============
