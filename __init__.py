@@ -141,8 +141,8 @@ def pre_llm_call_hook(
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
         
-        # 4. 创建技能追踪（L2/L3/L4 任务）
-        if task_level in ["L2", "L3", "L4"]:
+        # 4. 创建技能追踪（L2/L3/L4/W 任务）
+        if task_level in ["L2", "L3", "L4", "W"]:
             from .enforcer import create_tracker
             create_tracker(session_id, task_level)
         
