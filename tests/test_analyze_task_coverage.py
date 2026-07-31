@@ -18,10 +18,8 @@ class TestAnalyzeTaskCoverage:
     def _call(self, message: str) -> dict:
         from analyzer import analyze_task
         # mock Ollama 调用，强制降级到本地规则
-        # mock find_execution_plan（加载为 standalone 模块时不提供）
         with patch("analyzer.call_ollama_with_retry", return_value=None), \
-             patch("analyzer.call_ollama", return_value=None), \
-             patch("analyzer.find_execution_plan", return_value=None, create=True):
+             patch("analyzer.call_ollama", return_value=None):
             return analyze_task(message)
 
     # === L2 边界：多动词优先级 ===

@@ -330,9 +330,13 @@ class LocalRuleClient:
                 has_new_task = any(kw in lower for kw in new_task_keywords)
                 
                 if not has_new_task:
-                    # 确认词但不是新任务 → 可能是L4，检查方案文件
-                    plan_path = find_execution_plan()
-                    if plan_path and plan_path.exists():
+                    # 确认词但不是新任务 → L4（v5.9.1：由大模型上下文判断，不再文件查找）
+                    # 需多字确认词匹配，避免单字子串误报（如"你好"含"好"被误判为确认）
+                    # 单字确认词场景已由步骤1.2（纯确认）/1.3（短消息前缀）覆盖
+                    multi_char_confirm = any(
+                        kw in lower for kw in CONFIRM_KEYWORDS if len(kw) >= 2
+                    )
+                    if multi_char_confirm:
                         return "L4"
             
             # 继续到下面的关键词判断逻辑（不再直接return "L3"）
