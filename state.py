@@ -107,3 +107,18 @@ def set_last_injected_level(session_id: str, level: str) -> None:
     """记录某 session 注入的任务等级"""
     if level:
         _injected_levels[session_id] = level
+
+
+# ============ 最近决策规则追踪 ============
+_last_detected_rules: Dict[str, Dict[str, Any]] = {}  # session_id → decision
+
+
+def get_last_detected_rules(session_id: str) -> Optional[Dict[str, Any]]:
+    """获取某 session 最近一次分析的 detected_rules"""
+    return _last_detected_rules.get(session_id)
+
+
+def set_last_detected_rules(session_id: str, decision: Dict[str, Any]) -> None:
+    """记录某 session 最近一次分析的完整 decision"""
+    if decision:
+        _last_detected_rules[session_id] = decision

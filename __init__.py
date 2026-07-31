@@ -61,6 +61,7 @@ def _lazy_imports():
     """延迟导入模块，避免循环导入问题"""
     global set_active_skill, get_active_skill, is_skill_in_whitelist
     global get_last_injected_level, set_last_injected_level
+    global get_last_detected_rules, set_last_detected_rules
     global analyze_task, build_context
     global is_dangerous_command, log_violation, build_error_message
     global check_workflow_completion, is_subagent
@@ -72,6 +73,8 @@ def _lazy_imports():
             is_skill_in_whitelist,
             get_last_injected_level,
             set_last_injected_level,
+            get_last_detected_rules,
+            set_last_detected_rules,
         )
         from .analyzer import analyze_task
         from .context_builder import build_context
@@ -132,6 +135,9 @@ def pre_llm_call_hook(
             logger.debug(f"[SOUL] 等级未变({task_level})，跳过重复注入")
             return None
         set_last_injected_level(session_id, task_level)
+        # 保存最近决策，供 post_llm_call 复用动态规则
+        from .state import set_last_detected_rules
+        set_last_detected_rules(session_id, decision)
         
         # 2. L4 处理：大模型自主判断是否执行方案
         # 方案路径由大模型从上下文中判断，不再通过代码查找
@@ -333,13 +339,15 @@ def post_llm_call_hook(**kwargs) -> Optional[Dict[str, str]]:
     # 任务未完成，重新注入约束
     logger.info(f"[SOUL] 任务未完成，重新注入约束: session={session_id}, level={task_level}")
     
-    # 根据任务等级加载规则
+    # 根据任务等级加载规则（复用 pre_llm_call 动态判定的规则，不再硬编码）
+    from .state import get_last_detected_rules
+    saved_decision = get_last_detected_rules(session_id) or {}
     detected_rules = {
         "write_operation": True,
-        "code_guidance": False,
-        "agent_pool": False,
+        "code_guidance": saved_decision.get("code_guidance", False),
+        "agent_pool": saved_decision.get("agent_pool", False),
         "skill_usage": True,
-        "self_improving": False,
+        "self_improving": saved_decision.get("self_improving", False),
     }
     constraint = load_rules(task_level, detected_rules)
     if not constraint:
