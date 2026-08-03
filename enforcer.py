@@ -265,37 +265,17 @@ def _write_tracker_file(session_id: str, tracker: dict) -> bool:
 
 
 def _update_tracker_data(session_id: str, updates: dict) -> bool:
-    """更新追踪器数据（内部函数）"""
+    """更新追踪器数据（内部函数）——统一走文件写入。"""
     tracker = get_tracker(session_id)
     if not tracker:
         logger.warning(f"[SOUL-ENFORCER] 追踪器不存在，无法更新: {session_id}")
         return False
-    
     tracker.update(updates)
-    
     try:
-        from . import persistence
-        if hasattr(persistence, 'set_tracker') and callable(persistence.set_tracker):
-            persistence.set_tracker(session_id, tracker)
-            logger.debug("[SOUL-ENFORCER] 使用 persistence.set_tracker 持久化")
-        elif hasattr(persistence, 'save_tracker') and callable(persistence.save_tracker):
-            persistence.save_tracker(session_id, tracker)
-            logger.debug("[SOUL-ENFORCER] 使用 persistence.save_tracker 持久化")
-        else:
-            logger.warning("[SOUL-ENFORCER] persistence 模块无可用函数，回退到文件写入")
-            _write_tracker_file(session_id, tracker)
-    except ImportError as e:
-        logger.debug(f"[SOUL-ENFORCER] persistence 模块不存在: {e}")
-        _write_tracker_file(session_id, tracker)
+        return _write_tracker_file(session_id, tracker)
     except Exception as e:
-        logger.error(f"[SOUL-ENFORCER] 持久化失败，回退到文件写入: {e}")
-        try:
-            _write_tracker_file(session_id, tracker)
-        except Exception as e2:
-            logger.error(f"[SOUL-ENFORCER] 文件写入也失败: {e2}")
-            return False
-    
-    return True
+        logger.error(f"[SOUL-ENFORCER] 追踪器文件写入失败: {e}")
+        return False
 
 
 def track_execution(session_id: str, execution_type: str, tool_name: str = None) -> bool:
