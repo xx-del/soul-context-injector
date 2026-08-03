@@ -8,9 +8,26 @@ soul-context-injector 高危检测测试脚本
 """
 
 import sys
-sys.path.insert(0, '/home/kali/.hermes/plugins/soul-context-injector')
+import types
+import importlib.util
+from pathlib import Path
 
-from __init__ import is_dangerous_command
+PLUGIN_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(PLUGIN_DIR))
+
+# interceptor.py 内部使用相对导入（from .constants / from .state），
+# 作为独立脚本顶层导入时因无父包会报 "no known parent package"。
+# 仿照 tests/conftest.py 创建合成包 soul_context_injector，使相对导入正常生效。
+def _ensure_synthetic_package():
+    pkg_name = "soul_context_injector"
+    if pkg_name in sys.modules:
+        return
+    pkg = types.ModuleType(pkg_name)
+    pkg.__path__ = [str(PLUGIN_DIR)]
+    sys.modules[pkg_name] = pkg
+
+_ensure_synthetic_package()
+from soul_context_injector.interceptor import is_dangerous_command
 
 # 测试用例
 SAFE_COMMANDS = [
