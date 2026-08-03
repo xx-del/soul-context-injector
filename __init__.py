@@ -1,5 +1,5 @@
 """
-Soul Context Injector - Hermes Plugin v5.10.0
+Soul Context Injector - Hermes Plugin v5.11.0
 
 四层拦截体系（简化版）：
 - Layer 0: 子 agent 放行（继承父 agent 权限）
@@ -15,7 +15,7 @@ Soul Context Injector - Hermes Plugin v5.10.0
 - L4: 方案执行（planning-with-files + agent-pool）
 - W: 工作流任务（workflow-manager 强制执行）
 
-v5.10.0 更新：
+v5.11.0 更新：
 - 增量更新机制：任务等级转换时保留已调用技能历史
 - 新数据结构：current (required_skills, called_skills) + history + metadata
 - 自动迁移：旧格式追踪器自动迁移到新格式
