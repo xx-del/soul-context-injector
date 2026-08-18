@@ -25,6 +25,7 @@ hooks:
   - pre_tool_call   # 工具调用前拦截危险命令
   - post_tool_call  # 工具调用后清理
   - post_llm_call   # LLM 调用后持续注入约束
+  - on_session_end  # Session 结束时清理过期追踪文件
 
 # 配置选项
 config:

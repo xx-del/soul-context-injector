@@ -93,6 +93,26 @@ def _lazy_imports():
 _lazy_imports()
 
 
+# ============ 节流清理 ============
+import time as _time
+_last_cleanup_ts = 0.0
+
+def _throttled_cleanup():
+    """节流清理：每小时最多执行一次"""
+    global _last_cleanup_ts
+    now = _time.time()
+    if now - _last_cleanup_ts > 3600:
+        _last_cleanup_ts = now
+        try:
+            try:
+                from .enforcer import cleanup_expired_trackers
+            except ImportError:
+                from enforcer import cleanup_expired_trackers
+            cleanup_expired_trackers()
+        except Exception as e:
+            logger.error(f"[SOUL] 节流清理失败: {e}")
+
+
 # ============ Plugin Hooks ============
 
 def pre_llm_call_hook(
@@ -162,6 +182,9 @@ def pre_llm_call_hook(
     except Exception as e:
         logger.error(f"[soul] 处理失败: {e}")
     
+    # 兜底清理：每小时最多1次（主清理在 on_session_end）
+    _throttled_cleanup()
+
     return None
 
 
@@ -357,10 +380,27 @@ def post_llm_call_hook(**kwargs) -> Optional[Dict[str, str]]:
     return {"context": constraint}
 
 
+def on_session_end_hook(**kwargs):
+    """Session 结束时清理过期追踪文件
+
+    主清理时机：session 结束时自然触发，
+    避免 skill-tracking/ 目录文件无限堆积。
+    """
+    try:
+        try:
+            from .enforcer import cleanup_expired_trackers
+        except ImportError:
+            from enforcer import cleanup_expired_trackers
+        cleanup_expired_trackers()
+    except Exception as e:
+        logger.error(f"[SOUL] session 结束清理失败: {e}")
+
+
 def register(ctx):
     """插件注册入口"""
     ctx.register_hook("pre_llm_call", pre_llm_call_hook)
     ctx.register_hook("pre_tool_call", pre_tool_call_hook)
     ctx.register_hook("post_tool_call", post_tool_call_hook)
-    ctx.register_hook("post_llm_call", post_llm_call_hook)  # v5.11.0: 持续注入约束
-    logger.info("[soul-context-injector] 插件已加载 v5.11.0")
+    ctx.register_hook("post_llm_call", post_llm_call_hook)
+    ctx.register_hook("on_session_end", on_session_end_hook)  # v5.11.1: session 结束清理
+    logger.info("[soul-context-injector] 插件已加载 v5.11.1")
