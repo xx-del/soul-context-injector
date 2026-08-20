@@ -51,11 +51,10 @@ DANGEROUS_PATTERNS = [
 ]
 
 # 输出类工具 - 需要技能调用检查
+# v5.12.0: 移除 terminal/execute_code（信息获取工具不应拦截，只拦截最终输出）
 OUTPUT_TOOLS = {
-    "send_message",      # Telegram/Discord/Slack 消息
-    "text_to_speech",    # 语音输出
-    "execute_code",      # Python 代码执行（可能输出结果）
-    "terminal",          # 终端命令（可能输出结果）
+    "send_message",      # Telegram/Discord/Slack 消息（最终输出）
+    "text_to_speech",    # 语音输出（最终输出）
 }
 
 # 技能绑定映射
@@ -120,10 +119,10 @@ REQUIRED_SKILLS_L4 = [
 ]
 
 # 最大拦截次数（逃生舱阈值）
-MAX_ESCAPE_ATTEMPTS = 7  # Increased from 3 to prevent quick bypass
+MAX_ESCAPE_ATTEMPTS = 3  # v5.12.0: 降低：3 次足以判断合规意图
 
 # 执行超时（秒）
-EXECUTION_TIMEOUT_SECONDS = 600  # 10 分钟
+EXECUTION_TIMEOUT_SECONDS = 120  # v5.12.0: 降低：120 秒足够完成一次技能调用
 
 # 追踪文件 TTL（秒）
 TRACKER_TTL_SECONDS = 86400  # 24 小时

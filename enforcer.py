@@ -24,6 +24,7 @@ try:
         EXECUTION_TYPES, REQUIRED_SKILLS_L4, MAX_ESCAPE_ATTEMPTS,
         EXECUTION_TIMEOUT_SECONDS, TRACKER_TTL_SECONDS,
         TERMINAL_DETECTION_PATTERNS, SENSITIVE_PATTERNS, PHASE_INFO_MAX_LENGTH,
+        OUTPUT_TOOLS,
     )
 except ImportError:
     import logging
@@ -45,12 +46,13 @@ except ImportError:
         "PYTHON_API": "python_api",
     }
     REQUIRED_SKILLS_L4 = ["planning-with-files", "agent-pool"]
-    MAX_ESCAPE_ATTEMPTS = 7  # Increased from 3 to prevent quick bypass
-    EXECUTION_TIMEOUT_SECONDS = 600
+    MAX_ESCAPE_ATTEMPTS = 3  # v5.12.0: 降低：3 次足以判断合规意图
+    EXECUTION_TIMEOUT_SECONDS = 120  # v5.12.0: 降低：120 秒足够完成一次技能调用
     TRACKER_TTL_SECONDS = 86400
     TERMINAL_DETECTION_PATTERNS = []
     SENSITIVE_PATTERNS = []
     PHASE_INFO_MAX_LENGTH = 200
+    OUTPUT_TOOLS = {"send_message", "text_to_speech"}
 
 # 追踪文件目录
 TRACKING_DIR = Path.home() / ".hermes" / "skill-tracking"
@@ -441,7 +443,7 @@ def has_called_skill(session_id: str, skill_name: str) -> bool:
     return skill_name in called_skills
 
 
-def check_required_skills(session_id: str) -> Tuple[bool, Optional[str]]:
+def check_required_skills(session_id: str, tool_name: str = None) -> Tuple[bool, Optional[str]]:
     """检查是否调用了所有必须技能 + 实际执行
 
     支持新旧格式追踪器：
@@ -451,8 +453,11 @@ def check_required_skills(session_id: str) -> Tuple[bool, Optional[str]]:
     ⚠️ 逃生舱机制：每次拦截自动递增 escape_attempts
     达到 MAX_ESCAPE_ATTEMPTS 后自动放行
 
+    v5.12.0: 非输出工具降级为警告（不 BLOCK）
+
     Args:
         session_id: 会话ID
+        tool_name: 当前调用的工具名（用于判断是否 BLOCK）
 
     Returns:
         (True, None): 检查通过，允许输出
@@ -492,6 +497,14 @@ def check_required_skills(session_id: str) -> Tuple[bool, Optional[str]]:
         missing_execution = True
     
     if missing_skills or missing_execution:
+        # 【v5.12.0 优化】非输出工具降级为警告（不 BLOCK）
+        if tool_name and tool_name not in OUTPUT_TOOLS:
+            logger.warning(
+                f"[SOUL-ENFORCER] 技能缺失但放行: session={session_id}, "
+                f"missing={missing_skills}, tool={tool_name}"
+            )
+            return True, None
+
         # 【v3.0 修复】自动递增 escape_attempts
         escape_attempts = tracker.get("escape_attempts", 0) + 1
         

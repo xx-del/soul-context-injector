@@ -113,6 +113,23 @@ def _throttled_cleanup():
             logger.error(f"[SOUL] 节流清理失败: {e}")
 
 
+# ============ 分析类任务检测（v5.12.0） ============
+_ANALYSIS_KEYWORDS = frozenset({
+    "分析", "诊断", "排查", "原因", "为什么", "对比", "比较",
+    "评估", "审查", "检查", "检测", "定位", "根因",
+    "analysis", "diagnose", "debug", "why", "compare", "evaluate",
+})
+
+
+def _is_analysis_only(user_message: str) -> bool:
+    """检测消息是否为纯分析类任务（不需要 planning/agent-pool）。
+
+    分析类任务只需 deep-thinking，不应被判为 L3/L4。
+    """
+    msg_lower = user_message.lower()
+    return any(kw in msg_lower for kw in _ANALYSIS_KEYWORDS)
+
+
 # ============ Plugin Hooks ============
 
 def pre_llm_call_hook(
@@ -147,6 +164,12 @@ def pre_llm_call_hook(
         # 1. 分析任务（统一入口：工作流本地检测 → Ollama → 本地降级）
         decision = analyze_task(user_message)
         task_level = decision.get("task_level", "L1")
+
+        # 【v5.12.0 优化】分析类任务限制最高等级为 L2
+        if task_level in ("L3", "L4") and _is_analysis_only(user_message):
+            task_level = "L2"
+            logger.info(f"[SOUL] 分析类任务降级为 L2: {user_message[:50]}...")
+
         workflow_name = decision.get("workflow_name")
         
         # Layer 0.5: 同等级跳过重复注入（替代原 whitelist+active_skill 检查）
@@ -250,7 +273,7 @@ def pre_tool_call_hook(
         from .constants import OUTPUT_TOOLS
 
         if tool_name in OUTPUT_TOOLS:
-            all_called, error = check_required_skills(session_id)
+            all_called, error = check_required_skills(session_id, tool_name=tool_name)
             if not all_called:
                 log_violation("missing_required_skill", tool_name, args, task_id)
                 return {"error": error}
