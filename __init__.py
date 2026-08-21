@@ -176,7 +176,7 @@ def pre_llm_call_hook(
         msg_count = len(conversation_history)
         from .state import should_skip_injection
         if should_skip_injection(session_id, task_level, msg_count):
-            logger.debug(f"[SOUL] 同等级同轮次({task_level}, msgs={msg_count})，跳过注入")
+            logger.info(f"[SOUL] 同等级同轮次({task_level}, msgs={msg_count})，跳过注入")
             return None
         set_last_injected_level(session_id, task_level, msg_count)
         # 保存最近决策，供 post_llm_call 复用动态规则

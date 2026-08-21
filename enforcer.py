@@ -512,10 +512,6 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
     if task_level is None:
         task_level = tracker.get("task_level")
 
-    # 超时检查
-    if check_execution_timeout(session_id):
-        return True, None
-
     # 检查技能调用
     missing_skills = [s for s in required if s not in called]
 
@@ -529,6 +525,12 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
         if tool_name and tool_name not in OUTPUT_TOOLS:
             # L2/L3：必须先调用 required_skills，不允许绕过
             if task_level in ("L2", "L3"):
+                # 逃生舱检查：先检查是否达到最大拦截次数
+                escape_attempts = tracker.get("escape_attempts", 0) + 1
+                _update_tracker_data(session_id, {"escape_attempts": escape_attempts})
+                if escape_attempts > MAX_ESCAPE_ATTEMPTS:
+                    logger.warning(f"[SOUL-ENFORCER] L2/L3 达到最大拦截次数，自动放行: session={session_id}, attempts={escape_attempts}")
+                    return True, None
                 logger.warning(
                     f"[SOUL-ENFORCER] L2/L3 技能缺失拦截: session={session_id}, "
                     f"missing={missing_skills}, tool={tool_name}, level={task_level}"
@@ -569,7 +571,7 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
         _update_tracker_data(session_id, {"escape_attempts": escape_attempts})
         
         # 达到阈值自动放行
-        if escape_attempts >= MAX_ESCAPE_ATTEMPTS:
+        if escape_attempts > MAX_ESCAPE_ATTEMPTS:
             logger.warning(f"[SOUL-ENFORCER] 达到最大拦截次数，自动放行: session={session_id}, attempts={escape_attempts}")
             return True, None
         
@@ -627,6 +629,10 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
 
 ⚠️ 此拦截由 soul-context-injector 强制执行机制触发
 """
+    
+    # 超时检查（兜底）：如果执行超时，放行
+    if check_execution_timeout(session_id):
+        return True, None
     
     return True, None
 
