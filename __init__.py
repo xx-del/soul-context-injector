@@ -192,9 +192,11 @@ def pre_llm_call_hook(
         context = build_context(task_level, decision, user_message, session_id)
         
         # 4. 创建技能追踪（L2/L3/L4/W 任务）
+        #    新请求时 force_reset=True 清空 called_skills，确保每轮重新强制
+        #    （能到达此处说明 should_skip_injection 返回 False = 新请求）
         if task_level in ["L2", "L3", "L4", "W"]:
             from .enforcer import create_tracker
-            create_tracker(session_id, task_level)
+            create_tracker(session_id, task_level, force_reset=True)
         
         if context:
             log_msg = f"[soul] 注入上下文 {len(context)} 字符，任务等级: {task_level}"

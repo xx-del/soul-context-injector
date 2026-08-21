@@ -174,3 +174,47 @@ class TestPreLLMTurnAwareInjection:
             results.append(result is not None)
 
         assert results == [True, True, True], f"每条新消息都应注入，实际: {results}"
+
+
+class TestTrackerResetOnNewRequest:
+    """新请求应重置 tracker 的 called_skills。"""
+
+    def test_new_request_resets_tracker(self, soul_init):
+        """同等级新请求 → tracker 重置 → called_skills 清空"""
+        from enforcer import get_tracker, track_skill_call, TRACKING_DIR
+
+        session_id = "test_tracker_reset"
+        tracker_file = TRACKING_DIR / f"{session_id}.json"
+        if tracker_file.exists():
+            tracker_file.unlink()
+
+        try:
+            # 第1轮：L2 注入
+            soul_init.pre_llm_call_hook(
+                user_message="分析漏洞",
+                session_id=session_id,
+                conversation_history=[],
+                is_first_turn=False,
+                model="test", platform="test",
+            )
+
+            # 模拟 AI 调用 deep-thinking
+            track_skill_call(session_id, "deep-thinking")
+
+            # 第2轮：新请求（conversation_history 增长）
+            soul_init.pre_llm_call_hook(
+                user_message="分析另一个漏洞",
+                session_id=session_id,
+                conversation_history=[{"role": "user", "content": "分析漏洞"}, {"role": "assistant", "content": "..."}],
+                is_first_turn=False,
+                model="test", platform="test",
+            )
+
+            # 验证 tracker 被重置
+            tracker = get_tracker(session_id)
+            assert tracker is not None, "Tracker 应存在"
+            assert tracker["current"]["called_skills"] == [], \
+                f"新请求应重置 called_skills，实际: {tracker['current']['called_skills']}"
+        finally:
+            if tracker_file.exists():
+                tracker_file.unlink()
