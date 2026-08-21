@@ -5,7 +5,7 @@ class TestLevelTransitionInjection:
     """L2→L3→L4 等级转换应触发新规则注入。"""
 
     def test_same_level_skips_injection(self, soul_init):
-        """同等级（L2→L2）应跳过重复注入"""
+        """同等级+同轮次（conversation_history 不变）应跳过注入"""
         session_id = "test_same_level"
         base_kwargs = dict(
             session_id=session_id,

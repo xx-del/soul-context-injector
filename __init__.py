@@ -1,5 +1,5 @@
 """
-Soul Context Injector - Hermes Plugin v5.11.0
+Soul Context Injector - Hermes Plugin v5.12.0
 
 四层拦截体系（简化版）：
 - Layer 0: 子 agent 放行（继承父 agent 权限）
@@ -429,4 +429,4 @@ def register(ctx):
     ctx.register_hook("post_tool_call", post_tool_call_hook)
     ctx.register_hook("post_llm_call", post_llm_call_hook)
     ctx.register_hook("on_session_end", on_session_end_hook)  # v5.11.1: session 结束清理
-    logger.info("[soul-context-injector] 插件已加载 v5.11.1")
+    logger.info("[soul-context-injector] 插件已加载 v5.12.0")
