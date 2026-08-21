@@ -284,13 +284,13 @@ def pre_tool_call_hook(
             all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
             if not all_called:
                 log_violation("missing_required_skill", tool_name, args, task_id)
-                return {"error": error}
+                return {"action": "block", "message": error}
         # L4/其他：仅在输出工具时检查（保持 v5.12.0 行为）
         elif tool_name in OUTPUT_TOOLS:
             all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
             if not all_called:
                 log_violation("missing_required_skill", tool_name, args, task_id)
-                return {"error": error}
+                return {"action": "block", "message": error}
     
     # Layer 1: 子 agent 放行 - 继承父 agent 权限
     if is_subagent(session_id):
@@ -319,7 +319,7 @@ def pre_tool_call_hook(
     if tool_name == "terminal" and is_dangerous_command(command):
         log_violation("dangerous", tool_name, args, task_id)
         logger.warning(f"[SOUL] 拦截破坏性命令: {command[:50]}")
-        return {"error": build_error_message("dangerous", tool_name, args)}
+        return {"action": "block", "message": build_error_message("dangerous", tool_name, args)}
     
     # Layer 3: 工作流完整性检查 - 拦截未完成的输出
     if tool_name == "send_message":
@@ -327,7 +327,7 @@ def pre_tool_call_hook(
         if error:
             log_violation("incomplete_workflow", tool_name, args, task_id)
             logger.warning(f"[SOUL] 拦截不完整工作流输出")
-            return {"error": error}
+            return {"action": "block", "message": error}
     
     # Layer 5: 其他 - 直接放行
     return None
