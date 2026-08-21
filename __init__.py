@@ -272,11 +272,22 @@ def pre_tool_call_hook(
             if "agent_pool_client" in code or "Orchestrator" in code:
                 track_execution(session_id, EXECUTION_TYPES["PYTHON_API"], tool_name)
         
-        # 输出拦截（所有输出类工具）
+        # 输出拦截 + L2/L3 强制检查
         from .constants import OUTPUT_TOOLS
+        from .enforcer import get_tracker
 
-        if tool_name in OUTPUT_TOOLS:
-            all_called, error = check_required_skills(session_id, tool_name=tool_name)
+        tracker = get_tracker(session_id)
+        current_task_level = tracker.get("task_level") if tracker else None
+
+        # L2/L3：所有工具调用前都检查 required_skills
+        if current_task_level in ("L2", "L3") and tool_name not in ("skill_view",):
+            all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
+            if not all_called:
+                log_violation("missing_required_skill", tool_name, args, task_id)
+                return {"error": error}
+        # L4/其他：仅在输出工具时检查（保持 v5.12.0 行为）
+        elif tool_name in OUTPUT_TOOLS:
+            all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
             if not all_called:
                 log_violation("missing_required_skill", tool_name, args, task_id)
                 return {"error": error}

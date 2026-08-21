@@ -467,7 +467,7 @@ def has_called_skill(session_id: str, skill_name: str) -> bool:
     return skill_name in called_skills
 
 
-def check_required_skills(session_id: str, tool_name: str = None) -> Tuple[bool, Optional[str]]:
+def check_required_skills(session_id: str, tool_name: str = None, task_level: str = None) -> Tuple[bool, Optional[str]]:
     """检查是否调用了所有必须技能 + 实际执行
 
     支持新旧格式追踪器：
@@ -478,10 +478,12 @@ def check_required_skills(session_id: str, tool_name: str = None) -> Tuple[bool,
     达到 MAX_ESCAPE_ATTEMPTS 后自动放行
 
     v5.12.0: 非输出工具降级为警告（不 BLOCK）
+    v5.13.0: L2/L3 任务未调用 required_skills 时 BLOCK 所有工具（不只是 OUTPUT_TOOLS）
 
     Args:
         session_id: 会话ID
         tool_name: 当前调用的工具名（用于判断是否 BLOCK）
+        task_level: 当前任务等级（L2/L3 强制，L4 宽松）
 
     Returns:
         (True, None): 检查通过，允许输出
@@ -506,7 +508,9 @@ def check_required_skills(session_id: str, tool_name: str = None) -> Tuple[bool,
         called = set(tracker.get("called_skills", []))
 
     executed_by = tracker.get("executed_by", [])
-    task_level = tracker.get("task_level")
+    # 优先使用传入的 task_level，否则从 tracker 获取
+    if task_level is None:
+        task_level = tracker.get("task_level")
 
     # 超时检查
     if check_execution_timeout(session_id):
@@ -521,8 +525,37 @@ def check_required_skills(session_id: str, tool_name: str = None) -> Tuple[bool,
         missing_execution = True
     
     if missing_skills or missing_execution:
-        # 【v5.12.0 优化】非输出工具降级为警告（不 BLOCK）
+        # 非输出工具：按 task_level 分级处理
         if tool_name and tool_name not in OUTPUT_TOOLS:
+            # L2/L3：必须先调用 required_skills，不允许绕过
+            if task_level in ("L2", "L3"):
+                logger.warning(
+                    f"[SOUL-ENFORCER] L2/L3 技能缺失拦截: session={session_id}, "
+                    f"missing={missing_skills}, tool={tool_name}, level={task_level}"
+                )
+                error_parts = []
+                if missing_skills:
+                    error_parts.append(f"未调用必须技能: {', '.join(missing_skills)}")
+                if missing_execution:
+                    error_parts.append("未执行实际任务")
+                error_text = "\n".join(error_parts)
+                return False, f"""【规则违反】
+
+{error_text}
+
+当前任务等级: {task_level}
+已调用技能: {', '.join(called) if called else '无'}
+
+---
+
+【正确流程】
+1. skill_view("deep-thinking") — 分析/思考
+2. 然后执行其他工具调用
+
+---
+
+⚠️ 此拦截由 soul-context-injector L2/L3 强制执行机制触发"""
+            # L4/其他：降级为警告（保持 v5.12.0 行为）
             logger.warning(
                 f"[SOUL-ENFORCER] 技能缺失但放行: session={session_id}, "
                 f"missing={missing_skills}, tool={tool_name}"
