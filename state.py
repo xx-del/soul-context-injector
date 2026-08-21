@@ -95,18 +95,42 @@ def is_skill_in_whitelist(skill_name: str) -> bool:
 
 
 # ============ 注入等级追踪 ============
-_injected_levels: Dict[str, str] = {}  # session_id → task_level
+_injected_levels: Dict[str, Dict[str, Any]] = {}  # session_id → {level, msg_count}
 
 
 def get_last_injected_level(session_id: str) -> Optional[str]:
-    """获取某 session 最近一次注入的任务等级"""
-    return _injected_levels.get(session_id)
+    """获取某 session 最近一次注入的任务等级（向后兼容）"""
+    data = _injected_levels.get(session_id)
+    return data["level"] if data else None
 
 
-def set_last_injected_level(session_id: str, level: str) -> None:
-    """记录某 session 注入的任务等级"""
+def set_last_injected_level(session_id: str, level: str, msg_count: int = 0) -> None:
+    """记录某 session 注入的任务等级和轮次
+
+    Args:
+        session_id: 会话 ID
+        level: 任务等级
+        msg_count: 注入时的 conversation_history 长度
+    """
     if level:
-        _injected_levels[session_id] = level
+        _injected_levels[session_id] = {"level": level, "msg_count": msg_count}
+
+
+def should_skip_injection(session_id: str, new_level: str, current_msg_count: int) -> bool:
+    """判断是否应跳过注入（同等级+同轮次才跳过）
+
+    Args:
+        session_id: 会话 ID
+        new_level: 当前消息的任务等级
+        current_msg_count: 当前 conversation_history 长度
+
+    Returns:
+        True 如果应跳过（同等级+同轮次），False 如果应注入
+    """
+    data = _injected_levels.get(session_id)
+    if not data:
+        return False
+    return data["level"] == new_level and data["msg_count"] == current_msg_count
 
 
 # ============ 最近决策规则追踪 ============
