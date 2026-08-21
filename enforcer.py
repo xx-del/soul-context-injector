@@ -111,7 +111,7 @@ def migrate_tracker(old_tracker: Dict) -> Dict:
     }
 
 
-def create_tracker(session_id: str, task_level: str) -> Path:
+def create_tracker(session_id: str, task_level: str, force_reset: bool = False) -> Path:
     """创建或更新追踪器（增量模式）
 
     - 首次创建：初始化新追踪器
@@ -165,10 +165,34 @@ def create_tracker(session_id: str, task_level: str) -> Path:
     else:
         old_level = old_tracker.get("task_level")
 
-        # 等级相同，无需更新
+        # 等级相同
         if old_level == task_level:
-            logger.debug(f"[SOUL-ENFORCER] 等级相同，跳过更新: {session_id}")
-            return tracker_file
+            if force_reset:
+                # 新请求：重置 called_skills，保留等级和历史
+                tracker_data = {
+                    "session_id": session_id,
+                    "task_level": task_level,
+                    "created_at": old_tracker.get("created_at"),
+                    "updated_at": now,
+                    "current": {
+                        "required_skills": required_skills,
+                        "called_skills": []
+                    },
+                    "history": old_tracker.get("history", []),
+                    "metadata": {
+                        "total_calls": old_tracker.get("metadata", {}).get("total_calls", 0),
+                        "level_transitions": old_tracker.get("metadata", {}).get("level_transitions", 0),
+                        "last_skill_at": None
+                    }
+                }
+                logger.info(f"[SOUL-ENFORCER] 新请求重置追踪器: {session_id}")
+                # 写入并返回
+                with file_lock(tracker_file, "w") as f:
+                    json.dump(tracker_data, f, ensure_ascii=False, indent=2)
+                return tracker_file
+            else:
+                logger.debug(f"[SOUL-ENFORCER] 等级相同，跳过更新: {session_id}")
+                return tracker_file
 
         # 等级转换
         history_entry = {
