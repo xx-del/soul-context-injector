@@ -79,3 +79,32 @@ def test_corrupted_metadata_falls_back_to_created_at():
     data["metadata"] = None
     f.write_text(__import__("json").dumps(data))
     assert enforcer.check_execution_timeout(sid) is True
+
+
+def test_timeout_check_not_short_circuit(monkeypatch):
+    """check_required_skills 末尾不应再调用 check_execution_timeout（死代码已清理）。"""
+    from soul_context_injector import enforcer
+
+    def _boom(session_id):
+        raise AssertionError("check_execution_timeout 不应被 check_required_skills 调用")
+
+    monkeypatch.setattr(enforcer, "check_execution_timeout", _boom)
+
+    sid = "timeout-test-no-short-circuit"
+    now = datetime.datetime.now().isoformat()
+    data = {
+        "session_id": sid,
+        "task_level": "L2",
+        "updated_at": now,
+        "current": {
+            "required_skills": ["skill_view(analysis)"],
+            "called_skills": ["skill_view(analysis)"],
+        },
+        "history": [],
+        "created_at": now,
+        "metadata": {},
+    }
+    (TRACKING_DIR / f"{sid}.json").write_text(__import__("json").dumps(data))
+
+    ok, err = enforcer.check_required_skills(sid, tool_name="terminal", task_level="L2")
+    assert (ok, err) == (True, None)

@@ -632,10 +632,6 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
 ⚠️ 此拦截由 soul-context-injector 强制执行机制触发
 """
     
-    # 超时检查（兜底）：如果执行超时，放行
-    if check_execution_timeout(session_id):
-        return True, None
-    
     return True, None
 
 
