@@ -337,20 +337,22 @@ def check_execution_timeout(session_id: str) -> bool:
     if not tracker:
         return False
     
-    created_at_str = tracker.get("created_at")
-    if not created_at_str:
+    # 滑动窗口基准：优先 metadata.last_skill_at（最近一次技能调用），回退 created_at
+    baseline_str = (tracker.get("metadata", {}) or {}).get("last_skill_at") or tracker.get("created_at")
+    if not baseline_str:
         return False
-    
+
     try:
-        created_at = datetime.datetime.fromisoformat(created_at_str)
-        elapsed = (datetime.datetime.now() - created_at).total_seconds()
-        if elapsed > EXECUTION_TIMEOUT_SECONDS:
-            logger.warning(f"[SOUL-ENFORCER] 执行超时，自动放行: session={session_id}, elapsed={elapsed:.1f}s")
+        baseline = datetime.datetime.fromisoformat(baseline_str)
+        idle_seconds = (datetime.datetime.now() - baseline).total_seconds()
+        if idle_seconds > EXECUTION_TIMEOUT_SECONDS:
+            baseline_src = "last_skill_at" if (tracker.get("metadata", {}) or {}).get("last_skill_at") else "created_at"
+            logger.warning(f"[SOUL-ENFORCER] 执行超时(滑动窗口)，自动放行: session={session_id}, idle={idle_seconds:.1f}s, 基准={baseline_src}")
             return True
     except Exception as e:
         logger.error(f"[SOUL-ENFORCER] 时间解析失败: {e}")
         return False
-    
+
     return False
 
 
