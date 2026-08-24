@@ -53,6 +53,29 @@ def _synthetic_package():
     yield
 
 
+# ========== TRACKING_DIR 全局隔离 ==========
+
+@pytest.fixture(autouse=True)
+def _isolate_tracking_dir(tmp_path, monkeypatch):
+    """将 enforcer.TRACKING_DIR 隔离到临时目录。
+
+    杜绝 escape_attempts 等状态跨测试文件/跨 pytest 运行持久化累积，
+    否则 L2/L3 BLOCK 断言会因逃生舱自动放行而间歇性失败。
+    同时覆盖两种导入路径：包内 soul_context_injector.enforcer 与
+    顶层 enforcer（部分测试文件直接 sys.path 插入插件目录导入）。
+    """
+    import importlib
+
+    for mod_name in ("soul_context_injector.enforcer", "enforcer"):
+        try:
+            mod = importlib.import_module(mod_name)
+        except Exception:
+            continue
+        if hasattr(mod, "TRACKING_DIR"):
+            monkeypatch.setattr(mod, "TRACKING_DIR", tmp_path)
+    yield
+
+
 # ========== 模块导入辅助 ==========
 
 @pytest.fixture
