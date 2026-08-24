@@ -71,7 +71,7 @@ def test_repeated_skill_call_renews_window():
     """重复调用同一技能也应续期 last_skill_at（修复"仅首次入列刷新"bug）。"""
     from soul_context_injector import enforcer
 
-    sid = _make_tracker("renew", created_offset_s=290, last_skill_offset_s=290)
+    sid = _make_tracker("renew", created_offset_s=250, last_skill_offset_s=250)
     current = __import__("json").loads((enforcer.TRACKING_DIR / f"{sid}.json").read_text())
     current["current"]["called_skills"] = ["deep-thinking"]
     assert enforcer._write_tracker_file(sid, current)
