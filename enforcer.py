@@ -47,7 +47,7 @@ except ImportError:
     }
     REQUIRED_SKILLS_L4 = ["planning-with-files", "agent-pool"]
     MAX_ESCAPE_ATTEMPTS = 3  # v5.12.0: 降低：3 次足以判断合规意图
-    EXECUTION_TIMEOUT_SECONDS = 120  # v5.12.0: 降低：120 秒足够完成一次技能调用
+    EXECUTION_TIMEOUT_SECONDS = 300  # 空闲阈值：距最近一次必需技能调用超过此值视为空闲超时（与 constants.py 保持同步）
     TRACKER_TTL_SECONDS = 86400
     TERMINAL_DETECTION_PATTERNS = []
     SENSITIVE_PATTERNS = []
@@ -430,17 +430,23 @@ def track_skill_call(session_id: str, skill_name: str) -> bool:
         # 旧格式
         called_skills = tracker.get("called_skills", [])
 
-    if skill_name not in called_skills:
+    is_new = skill_name not in called_skills
+    if is_new:
         called_skills.append(skill_name)
 
-        # 更新元数据（新格式）
-        metadata = tracker.get("metadata", {})
-        if metadata:
-            metadata["total_calls"] = metadata.get("total_calls", 0) + 1
-            metadata["last_skill_at"] = datetime.datetime.now().isoformat()
+    # 无条件续期滑动窗口基准（重复调用同一技能也要刷新）
+    metadata = tracker.get("metadata", {})
+    if not isinstance(metadata, dict):
+        metadata = {}
+        tracker["metadata"] = metadata
+    if is_new:
+        metadata["total_calls"] = metadata.get("total_calls", 0) + 1
+    metadata["last_skill_at"] = datetime.datetime.now().isoformat()
 
-        update_tracker(session_id, tracker)
-        logger.info(f"[SOUL-ENFORCER] 技能调用追踪: session={session_id}, skill={skill_name}")
+    update_tracker(session_id, tracker)
+    logger.info(
+        f"[SOUL-ENFORCER] 技能调用追踪: session={session_id}, skill={skill_name}, renewed={not is_new}"
+    )
 
     return True
 
@@ -631,7 +637,7 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
 
 ⚠️ 此拦截由 soul-context-injector 强制执行机制触发
 """
-    
+    # 超时兜底已移除：check_execution_timeout 由 hook 主流程独立调用
     return True, None
 
 

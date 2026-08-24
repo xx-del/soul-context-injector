@@ -122,7 +122,7 @@ REQUIRED_SKILLS_L4 = [
 MAX_ESCAPE_ATTEMPTS = 3  # v5.12.0: 降低：3 次足以判断合规意图
 
 # 执行超时（秒）
-EXECUTION_TIMEOUT_SECONDS = 120  # v5.12.0: 降低：120 秒足够完成一次技能调用
+EXECUTION_TIMEOUT_SECONDS = 300  # 空闲阈值：距最近一次必需技能调用超过此值视为空闲超时
 
 # 追踪文件 TTL（秒）
 TRACKER_TTL_SECONDS = 86400  # 24 小时

@@ -17,11 +17,11 @@ class TestTimeoutConstants:
             f"MAX_ESCAPE_ATTEMPTS 应为 3，实际为 {MAX_ESCAPE_ATTEMPTS}"
         )
 
-    def test_execution_timeout_is_120(self):
-        """EXECUTION_TIMEOUT_SECONDS 应从 600 降为 120。"""
+    def test_execution_timeout_is_300(self):
+        """EXECUTION_TIMEOUT_SECONDS 应为 300（空闲阈值语义）。"""
         from soul_context_injector.constants import EXECUTION_TIMEOUT_SECONDS
-        assert EXECUTION_TIMEOUT_SECONDS == 120, (
-            f"EXECUTION_TIMEOUT_SECONDS 应为 120，实际为 {EXECUTION_TIMEOUT_SECONDS}"
+        assert EXECUTION_TIMEOUT_SECONDS == 300, (
+            f"EXECUTION_TIMEOUT_SECONDS 应为 300，实际为 {EXECUTION_TIMEOUT_SECONDS}"
         )
 
 

@@ -11,15 +11,6 @@ import datetime
 
 import pytest
 
-PLUGIN_DIR = None  # 兼容占位：TRACKING_DIR 已由 conftest 统一隔离
-
-
-@pytest.fixture(autouse=True)
-def _isolated_tracking_dir():
-    """兼容保留：conftest 的 _isolate_tracking_dir 已完成隔离，此处仅作语义标记。"""
-    yield
-
-
 def _make_tracker(session_id, created_offset_s, last_skill_offset_s=None):
     from soul_context_injector import enforcer
 
@@ -74,6 +65,21 @@ def test_corrupted_metadata_falls_back_to_created_at():
     data["metadata"] = None
     f.write_text(__import__("json").dumps(data))
     assert enforcer.check_execution_timeout(sid) is True
+
+
+def test_repeated_skill_call_renews_window():
+    """重复调用同一技能也应续期 last_skill_at（修复"仅首次入列刷新"bug）。"""
+    from soul_context_injector import enforcer
+
+    sid = _make_tracker("renew", created_offset_s=290, last_skill_offset_s=290)
+    current = __import__("json").loads((enforcer.TRACKING_DIR / f"{sid}.json").read_text())
+    current["current"]["called_skills"] = ["deep-thinking"]
+    assert enforcer._write_tracker_file(sid, current)
+
+    # 技能已在列表中——原 bug 路径：不刷新 last_skill_at
+    assert enforcer.track_skill_call(sid, "deep-thinking") is True
+    # 290s < 300s 新阈值，且 last_skill_at 已续期为 now
+    assert enforcer.check_execution_timeout(sid) is False
 
 
 def test_timeout_check_not_short_circuit(monkeypatch):
