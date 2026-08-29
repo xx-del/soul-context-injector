@@ -1,5 +1,5 @@
 """
-Soul Context Injector - Hermes Plugin v5.12.0
+Soul Context Injector - Hermes Plugin v5.14.0
 
 四层拦截体系（简化版）：
 - Layer 0: 子 agent 放行（继承父 agent 权限）
@@ -113,7 +113,7 @@ def _throttled_cleanup():
             logger.error(f"[SOUL] 节流清理失败: {e}")
 
 
-# ============ 分析类任务检测（v5.12.0） ============
+# ============ 分析类任务检测（v5.14.0） ============
 _ANALYSIS_KEYWORDS = frozenset({
     "分析", "诊断", "排查", "原因", "为什么", "对比", "比较",
     "评估", "审查", "检查", "检测", "定位", "根因",
@@ -165,7 +165,7 @@ def pre_llm_call_hook(
         decision = analyze_task(user_message)
         task_level = decision.get("task_level", "L1")
 
-        # 【v5.12.0 优化】分析类任务限制最高等级为 L2
+        # 【v5.14.0 优化】分析类任务限制最高等级为 L2
         if task_level in ("L3", "L4") and _is_analysis_only(user_message):
             task_level = "L2"
             logger.info(f"[SOUL] 分析类任务降级为 L2: {user_message[:50]}...")
@@ -279,13 +279,13 @@ def pre_tool_call_hook(
         tracker = get_tracker(session_id)
         current_task_level = tracker.get("task_level") if tracker else None
 
-        # L2/L3：所有工具调用前都检查 required_skills
-        if current_task_level in ("L2", "L3") and tool_name not in ("skill_view",):
+        # L2/L3：仅在输出工具时检查 required_skills（不拦截信息获取工具）
+        if current_task_level in ("L2", "L3") and tool_name in OUTPUT_TOOLS:
             all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
             if not all_called:
                 log_violation("missing_required_skill", tool_name, args, task_id)
                 return {"action": "block", "message": error}
-        # L4/其他：仅在输出工具时检查（保持 v5.12.0 行为）
+        # L4/其他：仅在输出工具时检查（保持 v5.14.0 行为）
         elif tool_name in OUTPUT_TOOLS:
             all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
             if not all_called:
@@ -440,4 +440,4 @@ def register(ctx):
     ctx.register_hook("post_tool_call", post_tool_call_hook)
     ctx.register_hook("post_llm_call", post_llm_call_hook)
     ctx.register_hook("on_session_end", on_session_end_hook)  # v5.11.1: session 结束清理
-    logger.info("[soul-context-injector] 插件已加载 v5.12.0")
+    logger.info("[soul-context-injector] 插件已加载 v5.14.0")
