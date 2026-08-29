@@ -145,3 +145,16 @@ SENSITIVE_PATTERNS = [
 
 # phase_info 最大长度
 PHASE_INFO_MAX_LENGTH = 200
+
+# ============ 调查类消息豁免（v5.15.0） ============
+# 调查动词：仅需读取信息的操作
+INVESTIGATION_VERBS = frozenset({
+    "查看", "排查", "检查", "查找", "搜索", "浏览", "诊断",
+    "check", "inspect", "search", "investigate", "examine",
+})
+# 技术名词：代码/日志/配置等技术实体
+INVESTIGATION_NOUNS = frozenset({
+    "代码", "日志", "配置", "文件", "系统", "服务", "进程", "端口", "网络",
+    "code", "log", "config", "configuration", "file", "system",
+    "service", "process", "port", "network", "server", "database",
+})

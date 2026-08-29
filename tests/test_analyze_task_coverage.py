@@ -22,11 +22,14 @@ class TestAnalyzeTaskCoverage:
              patch("analyzer.call_ollama", return_value=None):
             return analyze_task(message)
 
-    # === L2 边界：多动词优先级 ===
+    # === 调查类豁免：含调查动词+技术名词 → L1（v5.15.0） ===
 
-    def test_l2_find_problem_in_logs(self):
+    def test_investigation_exempt_view_logs(self):
+        """查看日志找出问题 → L1（调查动词+技术名词豁免）"""
         r = self._call("查看日志找出问题")
-        assert r["task_level"] == "L2", f"预期L2，实际 {r['task_level']}"
+        assert r["task_level"] == "L1", f"预期L1，实际 {r['task_level']}"
+
+    # === L2 边界：多动词优先级 ===
 
     def test_l2_check_if_correct(self):
         r = self._call("我看一下这个对不对")

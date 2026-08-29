@@ -589,6 +589,7 @@ def analyze_task(user_message: str) -> Dict[str, Any]:
     2. 技能意图检测（白名单技能直接执行）
     3. Ollama 分析
     4. 本地规则降级
+    5. 调查类消息豁免（动词+名词 → L1）
     """
     # 1. 工作流本地检测（最高优先级）
     workflow_result = detect_workflow_local(user_message)
@@ -618,4 +619,29 @@ def analyze_task(user_message: str) -> Dict[str, Any]:
         logger.info("[soul] 使用本地规则降级分析")
         decision = local_client.analyze(user_message)
     
+    # 5. 调查类消息豁免：含调查动词 + 技术名词 → L1
+    #    不触发 L2 强制（deep-thinking 技能要求），跳过至步骤4
+    task_level = decision.get("task_level", "L1")
+    if task_level in ("L2", "L3", "L4") and _is_investigation_message(user_message):
+        logger.info(f"[soul] 调查类消息豁免，降级为 L1: {user_message[:50]}...")
+        decision["task_level"] = "L1"
+    
     return decision
+
+
+def _is_investigation_message(user_message: str) -> bool:
+    """检测消息是否为调查类消息：含调查动词 + 代码/日志/配置名词。
+
+    调查类消息仅需读取信息，不触发 L2 强制（deep-thinking 技能要求）。
+    必须同时包含调查动词和技术名词才生效，避免"查看进度"等非技术查询误触发。
+    """
+    if not user_message or not user_message.strip():
+        return False
+    try:
+        from .constants import INVESTIGATION_VERBS, INVESTIGATION_NOUNS
+    except ImportError:
+        from constants import INVESTIGATION_VERBS, INVESTIGATION_NOUNS
+    msg_lower = user_message.lower()
+    has_verb = any(kw in msg_lower for kw in INVESTIGATION_VERBS)
+    has_noun = any(kw in msg_lower for kw in INVESTIGATION_NOUNS)
+    return has_verb and has_noun

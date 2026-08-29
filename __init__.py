@@ -113,6 +113,27 @@ def _throttled_cleanup():
             logger.error(f"[SOUL] 节流清理失败: {e}")
 
 
+# ============ 调查类消息豁免（v5.15.0） ============
+
+
+def _is_investigation_message(user_message: str) -> bool:
+    """检测消息是否为调查类消息：含调查动词 + 代码/日志/配置名词。
+
+    调查类消息仅需读取信息，不触发 L2 强制（deep-thinking 技能要求）。
+    必须同时包含调查动词和技术名词才生效，避免"查看进度"等非技术查询误触发。
+    """
+    if not user_message or not user_message.strip():
+        return False
+    try:
+        from .constants import INVESTIGATION_VERBS, INVESTIGATION_NOUNS
+    except (ImportError, SystemError):
+        from constants import INVESTIGATION_VERBS, INVESTIGATION_NOUNS
+    msg_lower = user_message.lower()
+    has_verb = any(kw in msg_lower for kw in INVESTIGATION_VERBS)
+    has_noun = any(kw in msg_lower for kw in INVESTIGATION_NOUNS)
+    return has_verb and has_noun
+
+
 # ============ 分析类任务检测（v5.14.0） ============
 _ANALYSIS_KEYWORDS = frozenset({
     "分析", "诊断", "排查", "原因", "为什么", "对比", "比较",
@@ -169,6 +190,11 @@ def pre_llm_call_hook(
         if task_level in ("L3", "L4") and _is_analysis_only(user_message):
             task_level = "L2"
             logger.info(f"[SOUL] 分析类任务降级为 L2: {user_message[:50]}...")
+
+        # 【v5.15.0 新增】调查类消息豁免：调查动词 + 技术名词 → L1，不触发 L2 强制
+        if task_level in ("L2", "L3", "L4") and _is_investigation_message(user_message):
+            logger.info(f"[SOUL] 调查类消息豁免，降级为 L1: {user_message[:50]}...")
+            task_level = "L1"
 
         workflow_name = decision.get("workflow_name")
         
