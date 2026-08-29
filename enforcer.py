@@ -486,12 +486,12 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
     达到 MAX_ESCAPE_ATTEMPTS 后自动放行
 
     v5.12.0: 非输出工具降级为警告（不 BLOCK）
-    v5.13.0: L2/L3 任务未调用 required_skills 时 BLOCK 所有工具（不只是 OUTPUT_TOOLS）
+    v5.14.0: L2/L3 范围缩窄 — 仅在 OUTPUT_TOOLS 时拦截，不拦截信息获取工具
 
     Args:
         session_id: 会话ID
         tool_name: 当前调用的工具名（用于判断是否 BLOCK）
-        task_level: 当前任务等级（L2/L3 强制，L4 宽松）
+        task_level: 当前任务等级（L2/L3 仅 OUTPUT_TOOLS 强制，L4 宽松）
 
     Returns:
         (True, None): 检查通过，允许输出
@@ -531,40 +531,7 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
     if missing_skills or missing_execution:
         # 非输出工具：按 task_level 分级处理
         if tool_name and tool_name not in OUTPUT_TOOLS:
-            # L2/L3：必须先调用 required_skills，不允许绕过
-            if task_level in ("L2", "L3"):
-                # 逃生舱检查：先检查是否达到最大拦截次数
-                escape_attempts = tracker.get("escape_attempts", 0) + 1
-                _update_tracker_data(session_id, {"escape_attempts": escape_attempts})
-                if escape_attempts > MAX_ESCAPE_ATTEMPTS:
-                    logger.warning(f"[SOUL-ENFORCER] L2/L3 达到最大拦截次数，自动放行: session={session_id}, attempts={escape_attempts}")
-                    return True, None
-                logger.warning(
-                    f"[SOUL-ENFORCER] L2/L3 技能缺失拦截: session={session_id}, "
-                    f"missing={missing_skills}, tool={tool_name}, level={task_level}"
-                )
-                error_parts = []
-                if missing_skills:
-                    error_parts.append(f"未调用必须技能: {', '.join(missing_skills)}")
-                if missing_execution:
-                    error_parts.append("未执行实际任务")
-                error_text = "\n".join(error_parts)
-                return False, f"""【规则违反】
-
-{error_text}
-
-当前任务等级: {task_level}
-已调用技能: {', '.join(called) if called else '无'}
-
----
-
-【正确流程】
-1. skill_view("deep-thinking") — 分析/思考
-2. 然后执行其他工具调用
-
----
-
-⚠️ 此拦截由 soul-context-injector L2/L3 强制执行机制触发"""
+            # L2/L3：信息获取工具放行（范围缩窄：不拦截非输出工具）
             # L4/其他：降级为警告（保持 v5.12.0 行为）
             logger.warning(
                 f"[SOUL-ENFORCER] 技能缺失但放行: session={session_id}, "
@@ -579,7 +546,7 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
         _update_tracker_data(session_id, {"escape_attempts": escape_attempts})
         
         # 达到阈值自动放行
-        if escape_attempts > MAX_ESCAPE_ATTEMPTS:
+        if escape_attempts >= MAX_ESCAPE_ATTEMPTS:
             logger.warning(f"[SOUL-ENFORCER] 达到最大拦截次数，自动放行: session={session_id}, attempts={escape_attempts}")
             return True, None
         
