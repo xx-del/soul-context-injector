@@ -239,8 +239,17 @@ def pre_llm_call_hook(
         #    新请求时 force_reset=True 清空 called_skills，确保每轮重新强制
         #    （能到达此处说明 should_skip_injection 返回 False = 新请求）
         if task_level in ["L2", "L3", "L4", "W"]:
-            from .enforcer import create_tracker
+            from .enforcer import create_tracker, get_tracker
             create_tracker(session_id, task_level, force_reset=True)
+            
+            # 新增：等级转换时检查技能需求
+            tracker = get_tracker(session_id)
+            if tracker and len(tracker.get("history", [])) > 0:
+                required_skills = tracker.get("current", {}).get("required_skills", [])
+                called_skills = tracker.get("current", {}).get("called_skills", [])
+                missing = [s for s in required_skills if s not in called_skills]
+                if missing:
+                    logger.info("[SOUL] 等级转换后缺少技能: %s", missing)
         
         if context:
             log_msg = f"[soul] 注入上下文 {len(context)} 字符，任务等级: {task_level}"
