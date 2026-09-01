@@ -57,6 +57,17 @@ OUTPUT_TOOLS = {
     "text_to_speech",    # 语音输出（最终输出）
 }
 
+# 工具调用白名单 - 这些工具在required_skills未调用时仍可执行
+# 避免拦截基础工具导致功能异常
+TOOL_WHITELIST = {
+    "skill_view",           # 技能加载工具（必须允许）
+    "skills_list",          # 技能列表工具
+    "memory_search",        # 记忆搜索
+    "session_search",       # 会话搜索
+    "todo",                 # 任务管理
+    "skill_manage",         # 技能管理
+}
+
 # 技能绑定映射
 SKILL_BINDINGS = {
     "W": ["workflow-manager"],  # 工作流任务 - 硬编码绑定
