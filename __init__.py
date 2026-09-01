@@ -196,6 +196,13 @@ def pre_llm_call_hook(
             logger.info(f"[SOUL] 调查类消息豁免，降级为 L1: {user_message[:50]}...")
             task_level = "L1"
 
+        # 每轮检查机制：检查是否缺少必须技能
+        if task_level in ("L2", "L3", "L4"):
+            from .enforcer import check_round_completion
+            is_complete, missing_skills = check_round_completion(session_id, task_level)
+            if not is_complete and missing_skills:
+                logger.info("[SOUL] 检测到缺少技能: %s", missing_skills)
+
         workflow_name = decision.get("workflow_name")
         
         # Layer 0.5: 同等级+同轮次跳过注入（不同轮次=新请求，需重新注入）
@@ -216,6 +223,17 @@ def pre_llm_call_hook(
         
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
+
+        # 每轮强制约束：追加缺少技能的强制提示
+        if task_level in ("L2", "L3", "L4"):
+            from .enforcer import check_round_completion
+            is_complete, missing_skills = check_round_completion(session_id, task_level)
+            if not is_complete and missing_skills:
+                enforcement_msg = "\n\n⚠️ 【强制执行约束】\n"
+                enforcement_msg += "任务等级: " + task_level + "\n"
+                enforcement_msg += "缺少必须技能: " + ", ".join(missing_skills) + "\n"
+                enforcement_msg += "必须在本轮调用以上技能，不能跳过。\n"
+                context = (context or "") + enforcement_msg
         
         # 4. 创建技能追踪（L2/L3/L4/W 任务）
         #    新请求时 force_reset=True 清空 called_skills，确保每轮重新强制
