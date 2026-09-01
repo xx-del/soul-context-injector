@@ -95,6 +95,27 @@ def check_round_completion(session_id: str, task_level: str) -> Tuple[bool, List
     return len(missing) == 0, missing
 
 
+def should_block_tool_call(session_id: str, tool_name: str, task_level: str) -> tuple:
+    """检查是否应该拦截工具调用"""
+    # 检查是否在白名单中
+    try:
+        from .constants import TOOL_WHITELIST
+    except ImportError:
+        from constants import TOOL_WHITELIST
+    
+    if tool_name in TOOL_WHITELIST:
+        return False, None
+    
+    # 检查required_skills是否已调用
+    is_complete, missing_skills = check_round_completion(session_id, task_level)
+    
+    if not is_complete and missing_skills:
+        error_msg = f"【强制执行约束】你必须先调用skill_view加载必须技能: {', '.join(missing_skills)}。禁止调用其他工具！"
+        return True, error_msg
+    
+    return False, None
+
+
 def migrate_tracker(old_tracker: Dict) -> Dict:
     """迁移旧格式追踪器到新格式
 
