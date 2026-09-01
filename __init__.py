@@ -332,12 +332,14 @@ def pre_tool_call_hook(
         tracker = get_tracker(session_id)
         current_task_level = tracker.get("task_level") if tracker else None
 
-        # L2/L3：仅在输出工具时检查 required_skills（不拦截信息获取工具）
-        if current_task_level in ("L2", "L3") and tool_name in OUTPUT_TOOLS:
-            all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
-            if not all_called:
+        # L2/L3：在所有工具调用前检查 required_skills
+        if current_task_level in ("L2", "L3"):
+            from .enforcer import should_block_tool_call
+            should_block, error_msg = should_block_tool_call(session_id, tool_name, current_task_level)
+            if should_block:
                 log_violation("missing_required_skill", tool_name, args, task_id)
-                return {"action": "block", "message": error}
+                logger.warning("[SOUL] 拦截工具调用: %s", tool_name)
+                return {"action": "block", "message": error_msg}
         # L4/其他：仅在输出工具时检查（保持 v5.14.0 行为）
         elif tool_name in OUTPUT_TOOLS:
             all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
