@@ -83,6 +83,18 @@ def _check_completion(tracker: Dict) -> bool:
     return all(s in called for s in required)
 
 
+def check_round_completion(session_id: str, task_level: str) -> Tuple[bool, List[str]]:
+    """检查本轮是否已完成必要的技能调用"""
+    tracker = get_tracker(session_id)
+    if not tracker:
+        return False, SKILL_BINDINGS.get(task_level, [])
+    current = tracker.get("current", {})
+    called_skills = current.get("called_skills", [])
+    required_skills = current.get("required_skills", [])
+    missing = [s for s in required_skills if s not in called_skills]
+    return len(missing) == 0, missing
+
+
 def migrate_tracker(old_tracker: Dict) -> Dict:
     """迁移旧格式追踪器到新格式
 
