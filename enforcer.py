@@ -250,7 +250,7 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
             "updated_at": now,
             "current": {
                 "required_skills": required_skills,
-                "called_skills": old_tracker.get("current", {}).get("called_skills", [])  # 保留已调用技能
+                "called_skills": []  # 等级转换时清空called_skills
             },
             "history": history,
             "metadata": {
