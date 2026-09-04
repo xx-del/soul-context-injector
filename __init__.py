@@ -1,5 +1,5 @@
 """
-Soul Context Injector - Hermes Plugin v5.14.0
+Soul Context Injector - Hermes Plugin v5.15.0
 
 四层拦截体系（简化版）：
 - Layer 0: 子 agent 放行（继承父 agent 权限）
@@ -325,27 +325,19 @@ def pre_tool_call_hook(
             if "agent_pool_client" in code or "Orchestrator" in code:
                 track_execution(session_id, EXECUTION_TYPES["PYTHON_API"], tool_name)
         
-        # 输出拦截 + L2/L3 强制检查
-        from .constants import OUTPUT_TOOLS
+        # L2/L3/L4：所有工具调用前检查 required_skills
         from .enforcer import get_tracker
 
         tracker = get_tracker(session_id)
         current_task_level = tracker.get("task_level") if tracker else None
 
-        # L2/L3：在所有工具调用前检查 required_skills
-        if current_task_level in ("L2", "L3"):
+        if current_task_level in ("L2", "L3", "L4"):
             from .enforcer import should_block_tool_call
             should_block, error_msg = should_block_tool_call(session_id, tool_name, current_task_level)
             if should_block:
                 log_violation("missing_required_skill", tool_name, args, task_id)
                 logger.warning("[SOUL] 拦截工具调用: %s", tool_name)
                 return {"action": "block", "message": error_msg}
-        # L4/其他：仅在输出工具时检查（保持 v5.14.0 行为）
-        elif tool_name in OUTPUT_TOOLS:
-            all_called, error = check_required_skills(session_id, tool_name=tool_name, task_level=current_task_level)
-            if not all_called:
-                log_violation("missing_required_skill", tool_name, args, task_id)
-                return {"action": "block", "message": error}
     
     # Layer 1: 子 agent 放行 - 继承父 agent 权限
     if is_subagent(session_id):
@@ -495,4 +487,4 @@ def register(ctx):
     ctx.register_hook("post_tool_call", post_tool_call_hook)
     ctx.register_hook("post_llm_call", post_llm_call_hook)
     ctx.register_hook("on_session_end", on_session_end_hook)  # v5.11.1: session 结束清理
-    logger.info("[soul-context-injector] 插件已加载 v5.14.0")
+    logger.info("[soul-context-injector] 插件已加载 v5.15.0")

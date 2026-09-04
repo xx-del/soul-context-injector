@@ -13,12 +13,13 @@ class TestHookBlockFormat:
         assert result.get("action") == "block"
         assert "deep-thinking" in result.get("message", "")
 
-    def test_l2_info_tool_not_blocked(self, soul_init):
+    def test_l2_info_tool_blocked(self, soul_init):
+        """L2 未调用 deep-thinking 时，所有工具被拦截（v5.15.0 全工具拦截）。"""
         from soul_context_injector.enforcer import create_tracker
         create_tracker("fmt_l2info", "L2")
         result = soul_init.pre_tool_call_hook(tool_name="read_file", args={"path": "/etc/hostname"}, task_id="t", session_id="fmt_l2info")
-        if result is not None:
-            assert result.get("action") != "block"
+        assert result is not None
+        assert result.get("action") == "block"
 
     def test_l3_missing_skill_returns_block_on_send_message(self, soul_init):
         from soul_context_injector.enforcer import create_tracker, track_skill_call
@@ -28,20 +29,22 @@ class TestHookBlockFormat:
         assert result is not None
         assert result.get("action") == "block"
 
-    def test_l3_info_tool_not_blocked(self, soul_init):
+    def test_l3_info_tool_blocked(self, soul_init):
+        """L3 未调用全部技能时，所有工具被拦截（v5.15.0 全工具拦截）。"""
         from soul_context_injector.enforcer import create_tracker, track_skill_call
         create_tracker("fmt_l3info", "L3")
         track_skill_call("fmt_l3info", "deep-thinking")
         result = soul_init.pre_tool_call_hook(tool_name="terminal", args={"command": "ls"}, task_id="t", session_id="fmt_l3info")
-        if result is not None:
-            assert result.get("action") != "block"
+        assert result is not None
+        assert result.get("action") == "block"
 
-    def test_l4_missing_skill_returns_no_block(self, soul_init):
+    def test_l4_missing_skill_returns_block(self, soul_init):
+        """L4 未调用技能时，所有工具被拦截（v5.15.0 全工具拦截）。"""
         from soul_context_injector.enforcer import create_tracker
         create_tracker("fmt_l4", "L4")
         result = soul_init.pre_tool_call_hook(tool_name="read_file", args={"path": "/etc/hostname"}, task_id="t", session_id="fmt_l4")
-        if result is not None:
-            assert result.get("action") != "block"
+        assert result is not None
+        assert result.get("action") == "block"
 
     def test_l2_with_skill_returns_no_block(self, soul_init):
         from soul_context_injector.enforcer import create_tracker, track_skill_call

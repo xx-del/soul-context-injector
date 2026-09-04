@@ -96,20 +96,33 @@ def check_round_completion(session_id: str, task_level: str) -> Tuple[bool, List
 
 
 def should_block_tool_call(session_id: str, tool_name: str, task_level: str) -> tuple:
-    """检查是否应该拦截工具调用"""
-    # 检查是否在白名单中
+    """检查是否应该拦截工具调用
+
+    逃生舱机制：连续拦截达到 MAX_ESCAPE_ATTEMPTS 后自动放行，
+    防止 AI 无法执行任何操作导致死锁。
+    """
     try:
-        from .constants import TOOL_WHITELIST
+        from .constants import TOOL_WHITELIST, MAX_ESCAPE_ATTEMPTS
     except ImportError:
-        from constants import TOOL_WHITELIST
+        from constants import TOOL_WHITELIST, MAX_ESCAPE_ATTEMPTS
     
     if tool_name in TOOL_WHITELIST:
         return False, None
     
-    # 检查required_skills是否已调用
     is_complete, missing_skills = check_round_completion(session_id, task_level)
     
     if not is_complete and missing_skills:
+        # 逃生舱：递增 escape_attempts，达到阈值自动放行
+        tracker = get_tracker(session_id)
+        if tracker:
+            escape_attempts = tracker.get("escape_attempts", 0) + 1
+            _update_tracker_data(session_id, {"escape_attempts": escape_attempts})
+            if escape_attempts > MAX_ESCAPE_ATTEMPTS:
+                logger.warning(
+                    f"[SOUL] 逃生舱触发，自动放行: attempts=%d" % escape_attempts
+                )
+                return False, None
+        
         error_msg = f"【强制执行约束】你必须先调用skill_view加载必须技能: {', '.join(missing_skills)}。禁止调用其他工具！"
         return True, error_msg
     
@@ -212,6 +225,7 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
                         "called_skills": []
                     },
                     "history": old_tracker.get("history", []),
+                    "escape_attempts": 0,
                     "metadata": {
                         "total_calls": old_tracker.get("metadata", {}).get("total_calls", 0),
                         "level_transitions": old_tracker.get("metadata", {}).get("level_transitions", 0),
