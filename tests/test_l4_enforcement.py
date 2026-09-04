@@ -72,6 +72,43 @@ class TestL4FullToolBlocking:
             blocked, _ = should_block_tool_call("l4t7", tool, "L4")
             assert blocked is False
 
+    def test_l4_allows_deep_thinking_called_before_planning(self, temp_tracking_dir):
+        """L4 先调用 deep-thinking 不干扰最终完成判定。"""
+        from enforcer import create_tracker, track_skill_call, should_block_tool_call
+        create_tracker("l4flex1", "L4")
+        track_skill_call("l4flex1", "deep-thinking")
+        blocked, _ = should_block_tool_call("l4flex1", "terminal", "L4")
+        assert blocked is True
+        track_skill_call("l4flex1", "planning-with-files")
+        track_skill_call("l4flex1", "agent-pool")
+        blocked, _ = should_block_tool_call("l4flex1", "terminal", "L4")
+        assert blocked is False
+
+    def test_l4_allows_openclaw_behavior_plan_called_before_planning(self, temp_tracking_dir):
+        """L4 先调用 openclaw-behavior-plan 不干扰最终完成判定。"""
+        from enforcer import create_tracker, track_skill_call, should_block_tool_call
+        create_tracker("l4flex2", "L4")
+        track_skill_call("l4flex2", "openclaw-behavior-plan")
+        blocked, _ = should_block_tool_call("l4flex2", "terminal", "L4")
+        assert blocked is True
+        track_skill_call("l4flex2", "planning-with-files")
+        track_skill_call("l4flex2", "agent-pool")
+        blocked, _ = should_block_tool_call("l4flex2", "terminal", "L4")
+        assert blocked is False
+
+    def test_l4_full_skill_chain(self, temp_tracking_dir):
+        """L4 完整技能链：deep-thinking -> openclaw-behavior-plan -> planning-with-files -> agent-pool -> 放行。"""
+        from enforcer import create_tracker, track_skill_call, should_block_tool_call
+        create_tracker("l4flex3", "L4")
+        skills = ["deep-thinking", "openclaw-behavior-plan", "planning-with-files", "agent-pool"]
+        for i, skill in enumerate(skills):
+            if i < len(skills) - 1:
+                blocked, _ = should_block_tool_call("l4flex3", "terminal", "L4")
+                assert blocked is True, f"Should be blocked before calling {skill}"
+            track_skill_call("l4flex3", skill)
+        blocked, _ = should_block_tool_call("l4flex3", "terminal", "L4")
+        assert blocked is False
+
 
 class TestL4EscapeHatch:
     """L4 逃生舱：连续拦截达到阈值后自动放行。"""
