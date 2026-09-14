@@ -227,7 +227,11 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
         # 等级相同
         if old_level == task_level:
             if force_reset:
-                # 新请求：重置 called_skills，保留等级和历史
+                # 新请求：同等级轮次重置。上一轮未完成（缺技能）时保留
+                # 已调用技能，避免每轮重复强制调用 deep-thinking；
+                # 上一轮已完成才清空（真正的"新任务"语义）。
+                old_complete = _check_completion(old_tracker)
+                prev_called = old_tracker.get("current", {}).get("called_skills", [])
                 tracker_data = {
                     "session_id": session_id,
                     "task_level": task_level,
@@ -235,7 +239,7 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
                     "updated_at": now,
                     "current": {
                         "required_skills": required_skills,
-                        "called_skills": []
+                        "called_skills": [] if old_complete else list(prev_called),
                     },
                     "history": old_tracker.get("history", []),
                     "escape_attempts": 0,
@@ -245,7 +249,9 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
                         "last_skill_at": None
                     }
                 }
-                logger.info(f"[SOUL-ENFORCER] 新请求重置追踪器: {session_id}")
+                logger.info("[SOUL-ENFORCER] 新请求重置追踪器: " + session_id
+                            + " (completed=" + str(old_complete)
+                            + ", retained=" + str(len(tracker_data["current"]["called_skills"])) + ")")
                 # 写入并返回
                 with file_lock(tracker_file, "w") as f:
                     json.dump(tracker_data, f, ensure_ascii=False, indent=2)
