@@ -101,18 +101,30 @@ def should_block_tool_call(session_id: str, tool_name: str, task_level: str) -> 
 
     逃生舱机制：连续拦截达到 MAX_ESCAPE_ATTEMPTS 后自动放行，
     防止 AI 无法执行任何操作导致死锁。
+
+    v5.14.0 范围缩窄：仅 OUTPUT_TOOLS（send_message/text_to_speech）
+    强制拦截；信息获取工具（read_file/search_files/terminal 等）
+    放行，避免批量消息中多个工具同时被 BLOCK。
     """
     try:
-        from .constants import TOOL_WHITELIST, MAX_ESCAPE_ATTEMPTS
+        from .constants import TOOL_WHITELIST, MAX_ESCAPE_ATTEMPTS, OUTPUT_TOOLS
     except ImportError:
-        from constants import TOOL_WHITELIST, MAX_ESCAPE_ATTEMPTS
-    
+        from constants import TOOL_WHITELIST, MAX_ESCAPE_ATTEMPTS, OUTPUT_TOOLS
+
     if tool_name in TOOL_WHITELIST:
         return False, None
-    
+
     is_complete, missing_skills = check_round_completion(session_id, task_level)
-    
+
     if not is_complete and missing_skills:
+        # v5.14.0 范围缩窄：非输出工具只警告不 BLOCK（与 check_required_skills 对齐）
+        if tool_name and tool_name not in OUTPUT_TOOLS:
+            logger.warning(
+                "[SOUL-ENFORCER] 技能缺失但放行(范围缩窄): "
+                "session=" + session_id + ", missing=" + str(missing_skills) + ", tool=" + tool_name
+            )
+            return False, None
+
         # 逃生舱：递增 escape_attempts，达到阈值自动放行
         tracker = get_tracker(session_id)
         if tracker:
@@ -120,13 +132,13 @@ def should_block_tool_call(session_id: str, tool_name: str, task_level: str) -> 
             _update_tracker_data(session_id, {"escape_attempts": escape_attempts})
             if escape_attempts > MAX_ESCAPE_ATTEMPTS:
                 logger.warning(
-                    f"[SOUL] 逃生舱触发，自动放行: attempts=%d" % escape_attempts
+                    "[SOUL] 逃生舱触发，自动放行: attempts=%d" % escape_attempts
                 )
                 return False, None
-        
-        error_msg = f"【强制执行约束】你必须先调用skill_view加载必须技能: {', '.join(missing_skills)}。禁止调用其他工具！"
+
+        error_msg = "【强制执行约束】你必须先调用skill_view加载必须技能: " + ", ".join(missing_skills) + "。禁止调用其他工具！"
         return True, error_msg
-    
+
     return False, None
 
 

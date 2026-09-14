@@ -174,30 +174,24 @@ class TestL4Unchanged:
 
 
 class TestHookIntegration:
-    """测试 pre_tool_call_hook 层面的范围缩窄。"""
+    """验证 pre_tool_call_hook 实际路径（should_block_tool_call）的范围缩窄。"""
 
-    def test_l2_hook_passes_read_file(self, temp_tracking_dir):
-        """L2 任务 pre_tool_call_hook 对 read_file 应放行（不拦截）。"""
-        from enforcer import create_tracker
+    def test_hook_l2_read_file_passes(self, temp_tracking_dir):
+        """pre_tool_call 实际调用链：L2 未调技能时 read_file 放行。"""
+        from enforcer import create_tracker, should_block_tool_call
 
-        session_id = "test_hook_l2_read_file"
+        session_id = "test_hook_real_l2_read_file"
         create_tracker(session_id, "L2")
 
-        # 模拟 hook 的逻辑：只有 OUTPUT_TOOLS 才调用 check_required_skills
-        from constants import OUTPUT_TOOLS
-        from enforcer import check_required_skills
+        should_block, msg = should_block_tool_call(session_id, "read_file", "L2")
+        assert should_block is False, "read_file 应放行: " + str(msg)
 
-        tool_name = "read_file"
-        # 范围缩窄后：非 OUTPUT_TOOLS 不调用 check_required_skills
-        should_check = tool_name in OUTPUT_TOOLS
-        assert not should_check, (
-            f"范围缩窄后 read_file 不应在 OUTPUT_TOOLS 中"
-        )
+    def test_hook_l2_send_message_blocks(self, temp_tracking_dir):
+        """pre_tool_call 实际调用链：L2 未调技能时 send_message 拦截。"""
+        from enforcer import create_tracker, should_block_tool_call
 
-    def test_l2_hook_checks_send_message(self, temp_tracking_dir):
-        """L2 任务 pre_tool_call_hook 对 send_message 应检查。"""
-        from constants import OUTPUT_TOOLS
+        session_id = "test_hook_real_l2_send_message"
+        create_tracker(session_id, "L2")
 
-        tool_name = "send_message"
-        should_check = tool_name in OUTPUT_TOOLS
-        assert should_check, "send_message 应在 OUTPUT_TOOLS 中"
+        should_block, msg = should_block_tool_call(session_id, "send_message", "L2")
+        assert should_block is True
