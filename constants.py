@@ -5,13 +5,21 @@ Soul Context Injector - 常量定义
 """
 
 import logging
+import os
 import yaml
 from pathlib import Path
+
+# ============ HOME 漂移免疫（由 2026-09-14 HOME 泄漏事件驱动） ============
+# 子代理隔离 HOME（export HOME=/tmp/ap_review_home*）泄漏到共享 terminal
+# 环境时，Path.home() 会漂移到 /tmp 下孤立目录，导致 tracker/state.db/
+# config/workflows 全部错位。插件统一使用 HERMES_HOME：优先 Hermes 进程
+# 环境变量（hermes_constants.get_hermes_home 同源），fallback 固定绝对路径。
+HERMES_HOME = Path(os.environ.get("HERMES_HOME") or "/home/kali/.hermes")
 
 # ============ 读取配置 ============
 def load_plugin_config():
     """从 config.yaml 读取插件配置"""
-    config_path = Path.home() / ".hermes" / "config.yaml"
+    config_path = HERMES_HOME / "config.yaml"
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
@@ -33,7 +41,7 @@ MAX_RETRIES = 3
 PLUGIN_DIR = Path(__file__).parent
 RULES_DIR = PLUGIN_DIR / "rules"
 RULES_INDEX_PATH = RULES_DIR / "index.json"
-VIOLATIONS_LOG = Path.home() / ".hermes" / "logs" / "soul-violations.log"
+VIOLATIONS_LOG = HERMES_HOME / "logs" / "soul-violations.log"
 # EXECUTION_AUTH_FILE 已废弃 - session 追踪机制不可靠（v5.9.0 移除）
 
 # ============ 日志 ============

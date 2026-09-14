@@ -8,10 +8,10 @@ import threading
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from .constants import logger, SKILL_WHITELIST
+from .constants import logger, SKILL_WHITELIST, HERMES_HOME
 
 # 技能目录
-SKILLS_DIR = Path.home() / ".hermes" / "skills"
+SKILLS_DIR = HERMES_HOME / "skills"
 
 
 def _skill_exists(skill_name: str) -> bool:

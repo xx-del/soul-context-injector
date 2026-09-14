@@ -24,7 +24,7 @@ try:
         EXECUTION_TYPES, REQUIRED_SKILLS_L4, MAX_ESCAPE_ATTEMPTS,
         EXECUTION_TIMEOUT_SECONDS, TRACKER_TTL_SECONDS,
         TERMINAL_DETECTION_PATTERNS, SENSITIVE_PATTERNS, PHASE_INFO_MAX_LENGTH,
-        OUTPUT_TOOLS,
+        OUTPUT_TOOLS, HERMES_HOME,
     )
 except ImportError:
     import logging
@@ -53,9 +53,10 @@ except ImportError:
     SENSITIVE_PATTERNS = []
     PHASE_INFO_MAX_LENGTH = 200
     OUTPUT_TOOLS = {"send_message", "text_to_speech"}
+    HERMES_HOME = Path('/home/kali/.hermes')
 
 # 追踪文件目录
-TRACKING_DIR = Path.home() / ".hermes" / "skill-tracking"
+TRACKING_DIR = HERMES_HOME / "skill-tracking"
 
 
 @contextlib.contextmanager

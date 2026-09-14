@@ -21,12 +21,17 @@ from .constants import (
     DANGEROUS_PATTERNS,
     CONFIRM_KEYWORDS,
     VIOLATIONS_LOG,
+    HERMES_HOME,
 )
 from .state import (
     get_active_skill,
     set_active_skill,
     is_skill_in_whitelist,
 )
+
+# ============ HOME 漂移免疫路径常量 ============
+WORKFLOW_TRACKING_DIR = HERMES_HOME / "workflow-tracking"
+EXEC_AUTH_DIR = HERMES_HOME / "execution-auth"
 
 
 # ============ 违规日志 ============
@@ -49,10 +54,9 @@ def log_violation(violation_type: str, tool_name: str, args: dict, task_id: str)
         
         # 如果是工作流违规，添加追踪 ID
         if violation_type in ("incomplete_workflow", "skipped_step"):
-            tracking_dir = Path.home() / ".hermes" / "workflow-tracking"
-            if tracking_dir.exists():
+            if WORKFLOW_TRACKING_DIR.exists():
                 # 找最新的追踪文件
-                tracking_files = list(tracking_dir.glob("*.json"))
+                tracking_files = list(WORKFLOW_TRACKING_DIR.glob("*.json"))
                 if tracking_files:
                     latest = max(tracking_files, key=lambda f: f.stat().st_mtime)
                     try:
@@ -152,8 +156,7 @@ def get_auth_file(session_id: str) -> Path:
 
     多会话支持：每个会话有独立的认证文件，避免互相覆盖
     """
-    auth_dir = Path.home() / ".hermes" / "execution-auth"
-    return auth_dir / f"{session_id}.json"
+    return EXEC_AUTH_DIR / f"{session_id}.json"
 
 
 def has_execution_auth(session_id: str, expected_task: str = None) -> bool:
@@ -296,13 +299,12 @@ def check_workflow_completion(session_id: str, tool_name: str) -> Optional[str]:
         str: 错误消息，需要 AI 回答
     """
     # 查找当前活跃的追踪文件
-    tracking_dir = Path.home() / ".hermes" / "workflow-tracking"
-    if not tracking_dir.exists():
+    if not WORKFLOW_TRACKING_DIR.exists():
         return None
     
     # 找到最新的 in_progress 追踪文件
     active_trackings = []
-    for f in tracking_dir.glob("*.json"):
+    for f in WORKFLOW_TRACKING_DIR.glob("*.json"):
         try:
             data = json.loads(f.read_text())
             if data.get("status") == "in_progress":

@@ -14,10 +14,15 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
+try:
+    from .constants import HERMES_HOME
+except ImportError:
+    HERMES_HOME = Path('/home/kali/.hermes')
+
 logger = logging.getLogger("soul-context-injector")
 
 # SessionDB 数据库路径（正确路径是 state.db）
-_STATE_DB_PATH = Path.home() / ".hermes" / "state.db"
+_STATE_DB_PATH = HERMES_HOME / "state.db"
 
 
 def is_subagent(session_id: str) -> bool:

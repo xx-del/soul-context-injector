@@ -25,6 +25,7 @@ try:
         RULES_INDEX_PATH,
         CONFIRM_KEYWORDS,
         PLUGIN_DIR,
+        HERMES_HOME,
     )
 except ImportError:
     import logging
@@ -44,6 +45,12 @@ except ImportError:
         "好", "嗯", "需要"
     ]
     PLUGIN_DIR = Path(__file__).parent
+    HERMES_HOME = Path('/home/kali/.hermes')
+
+
+# ============ HOME 漂移免疫路径常量 ============
+WORKFLOWS_DIR = HERMES_HOME / "workflows"
+SKILLS_DIR = HERMES_HOME / "skills"
 
 
 # ============ 工作流本地检测 ============
@@ -58,8 +65,7 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
     Returns:
         匹配成功返回 decision 字典，否则返回 None
     """
-    workflows_dir = Path.home() / ".hermes" / "workflows"
-    index_path = workflows_dir / "_index.yaml"
+    index_path = WORKFLOWS_DIR / "_index.yaml"
     
     if not index_path.exists():
         return None
@@ -144,8 +150,7 @@ def detect_workflow_local(user_message: str) -> Optional[Dict[str, Any]]:
 
 def get_workflow_names() -> list:
     """获取所有活跃工作流名称列表"""
-    workflows_dir = Path.home() / ".hermes" / "workflows"
-    index_path = workflows_dir / "_index.yaml"
+    index_path = WORKFLOWS_DIR / "_index.yaml"
     
     if not index_path.exists():
         return []
@@ -203,10 +208,9 @@ def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
     if SKILL_WHITELIST_MODE == 'all':
         # all 模式：扫描所有已安装技能
         from pathlib import Path
-        skills_dir = Path.home() / ".hermes" / "skills"
-        if skills_dir.exists():
+        if SKILLS_DIR.exists():
             skills_to_check = []
-            for item in skills_dir.iterdir():
+            for item in SKILLS_DIR.iterdir():
                 if item.is_dir():
                     # 直接技能目录: ~/.hermes/skills/<skill_name>/SKILL.md
                     if (item / "SKILL.md").exists():
