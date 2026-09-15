@@ -303,11 +303,11 @@ def pre_tool_call_hook(
                 result = track_skill_call(session_id, clean_skill_name)
                 logger.info(f"[SOUL] 追踪结果: {result}")
         
-        # 【v3.0 新增】追踪实际执行（多路径）
+        # 【v3.1 新增】追踪实际执行（多路径，仅追踪不强制）
         from .constants import EXECUTION_TYPES, TERMINAL_DETECTION_PATTERNS
         from .enforcer import track_execution
         
-        # 1. delegate_task 工具调用
+        # 1. delegate_task 工具调用（Hermes 内置，主要执行方式）
         if tool_name == "delegate_task":
             track_execution(session_id, EXECUTION_TYPES["DELEGATE_TASK"], tool_name)
         
