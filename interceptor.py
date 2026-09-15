@@ -214,16 +214,15 @@ def has_execution_auth(session_id: str, expected_task: str = None) -> bool:
         tracker = get_tracker(session_id)
         if tracker:
             task_level = tracker.get("task_level")
-            called = tracker.get("called_skills", [])
-            executed_by = tracker.get("executed_by", [])
+            called = tracker.get("current", {}).get("called_skills", [])
+            executed_by = tracker.get("current", {}).get("executed_by", [])
 
-            # L4: 检查技能调用 + 实际执行
+            # L4: 只检查技能调用（agent-pool 已移除，delegate_task 由 Hermes 内置支持）
             if task_level == "L4":
                 required = REQUIRED_SKILLS_L4
                 skills_ok = all(s in called for s in required)
-                exec_ok = len(executed_by) > 0
-                if skills_ok and exec_ok:
-                    logger.debug(f"[SOUL] 执行认证有效 (技能追踪): skills={called}, execution={executed_by}")
+                if skills_ok:
+                    logger.debug(f"[SOUL] 执行认证有效 (技能追踪): skills={called}")
                     return True
 
             # L2/L3: 只检查技能调用
