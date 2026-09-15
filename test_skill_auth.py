@@ -13,9 +13,9 @@ AUTH_DIR = Path.home() / ".hermes" / "execution-auth"
 SKILL_BINDINGS = {
     "L2": ["deep-thinking"],
     "L3": ["deep-thinking", "openclaw-behavior-plan"],
-    "L4": ["planning-with-files", "agent-pool"],
+    "L4": ["planning-with-files"],
 }
-REQUIRED_SKILLS_L4 = ["planning-with-files", "agent-pool"]
+REQUIRED_SKILLS_L4 = ["planning-with-files"]
 
 
 def create_tracker(session_id: str, task_level: str) -> Path:
@@ -106,13 +106,12 @@ def has_execution_auth(session_id: str) -> bool:
         called = tracker.get("called_skills", [])
         executed_by = tracker.get("executed_by", [])
 
-        # L4: 检查技能调用 + 实际执行
+        # L4: 只检查技能调用（agent-pool 已移除，delegate_task 由 Hermes 内置支持）
         if task_level == "L4":
             required = REQUIRED_SKILLS_L4
             skills_ok = all(s in called for s in required)
-            exec_ok = len(executed_by) > 0
-            if skills_ok and exec_ok:
-                print(f"  ✓ L4 认证通过: skills={called}, execution={executed_by}")
+            if skills_ok:
+                print(f"  ✓ L4 认证通过: skills={called}")
                 return True
 
         # L2/L3: 只检查技能调用
@@ -134,7 +133,7 @@ def cleanup_expired_trackers():
 
 
 def test_l4_auth_via_skill_tracking():
-    """L4: 技能调用 + 执行追踪 → 授予认证"""
+    """L4: 技能调用 → 授予认证（agent-pool 不再必需）"""
     print("\n[测试1] L4 技能验证认证")
     cleanup_expired_trackers()
 
@@ -142,8 +141,6 @@ def test_l4_auth_via_skill_tracking():
 
     create_tracker(session_id, "L4")
     track_skill_call(session_id, "planning-with-files")
-    track_skill_call(session_id, "agent-pool")
-    track_execution(session_id, "delegate_task", "delegate_task")
 
     result = has_execution_auth(session_id)
     assert result == True, f"期望 True，实际 {result}"
@@ -151,15 +148,14 @@ def test_l4_auth_via_skill_tracking():
 
 
 def test_l4_auth_missing_skill():
-    """L4: 缺少技能 → 无认证"""
+    """L4: 缺少必需技能 → 无认证"""
     print("\n[测试2] L4 缺少技能无认证")
     cleanup_expired_trackers()
 
     session_id = "test-l4-missing-skill"
 
     create_tracker(session_id, "L4")
-    track_skill_call(session_id, "planning-with-files")
-    # 没有执行
+    # 未调用 planning-with-files
 
     result = has_execution_auth(session_id)
     assert result == False, f"期望 False，实际 {result}"
