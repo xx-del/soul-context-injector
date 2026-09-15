@@ -16,7 +16,7 @@
 || L1 | 查看、读取、搜索 | 直接执行 | 无 ||
 || L2 | 分析、思考、为什么 | 触发 deep-thinking | deep-thinking ||
 || L3 | 创建、修改、部署 | 生成执行方案 | deep-thinking, openclaw-behavior-plan ||
-|| L4 | 确认、同意、执行 | 执行已确认方案 | planning-with-files, agent-pool ||
+|| L4 | 确认、同意、执行 | 执行已确认方案 | planning-with-files ||
 
 ### 2. 写入操作保护
 
