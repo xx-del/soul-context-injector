@@ -35,7 +35,7 @@ except ImportError:
         "W": ["workflow-manager"],
         "L2": ["deep-thinking"],
         "L3": ["deep-thinking", "openclaw-behavior-plan"],
-        "L4": ["planning-with-files", "agent-pool"],
+        "L4": ["planning-with-files"],
     }
     # L4 常量降级定义
     EXECUTION_TYPES = {
@@ -45,7 +45,7 @@ except ImportError:
         "TERMINAL_EXECUTION": "terminal_execution",
         "PYTHON_API": "python_api",
     }
-    REQUIRED_SKILLS_L4 = ["planning-with-files", "agent-pool"]
+    REQUIRED_SKILLS_L4 = ["planning-with-files"]
     MAX_ESCAPE_ATTEMPTS = 3  # v5.12.0: 降低：3 次足以判断合规意图
     EXECUTION_TIMEOUT_SECONDS = 300  # 空闲阈值：距最近一次必需技能调用超过此值视为空闲超时（与 constants.py 保持同步）
     TRACKER_TTL_SECONDS = 86400

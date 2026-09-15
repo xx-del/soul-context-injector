@@ -64,20 +64,19 @@ class TestL4ToolScoping:
             blocked, _ = should_block_tool_call("l4t5", tool, "L4")
             assert blocked is False, f"{tool} should be whitelisted"
 
-    def test_l4_still_blocks_send_message_after_only_planning_with_files(self, temp_tracking_dir):
-        """L4 仅调用 planning-with-files 时 send_message 仍拦截（需两个技能都调用）。"""
+    def test_l4_allows_after_planning_with_files_only(self, temp_tracking_dir):
+        """L4 调用 planning-with-files 后即放行（agent-pool 不再是必需技能）。"""
         from enforcer import create_tracker, track_skill_call, should_block_tool_call
         create_tracker("l4t6", "L4")
         track_skill_call("l4t6", "planning-with-files")
         blocked, _ = should_block_tool_call("l4t6", "send_message", "L4")
-        assert blocked is True
+        assert blocked is False
 
-    def test_l4_allows_all_tools_after_both_skills(self, temp_tracking_dir):
-        """L4 调用 planning-with-files + agent-pool 后，所有工具放行。"""
+    def test_l4_allows_all_tools_after_planning_with_files(self, temp_tracking_dir):
+        """L4 调用 planning-with-files 后，所有工具放行。"""
         from enforcer import create_tracker, track_skill_call, should_block_tool_call
         create_tracker("l4t7", "L4")
         track_skill_call("l4t7", "planning-with-files")
-        track_skill_call("l4t7", "agent-pool")
         for tool in ["terminal", "read_file", "delegate_task", "send_message"]:
             blocked, _ = should_block_tool_call("l4t7", tool, "L4")
             assert blocked is False
@@ -90,7 +89,6 @@ class TestL4ToolScoping:
         blocked, _ = should_block_tool_call("l4flex1", "send_message", "L4")
         assert blocked is True
         track_skill_call("l4flex1", "planning-with-files")
-        track_skill_call("l4flex1", "agent-pool")
         blocked, _ = should_block_tool_call("l4flex1", "terminal", "L4")
         assert blocked is False
 
@@ -102,15 +100,14 @@ class TestL4ToolScoping:
         blocked, _ = should_block_tool_call("l4flex2", "send_message", "L4")
         assert blocked is True
         track_skill_call("l4flex2", "planning-with-files")
-        track_skill_call("l4flex2", "agent-pool")
         blocked, _ = should_block_tool_call("l4flex2", "terminal", "L4")
         assert blocked is False
 
     def test_l4_full_skill_chain(self, temp_tracking_dir):
-        """L4 完整技能链：deep-thinking -> openclaw-behavior-plan -> planning-with-files -> agent-pool -> 放行。"""
+        """L4 完整技能链：deep-thinking -> openclaw-behavior-plan -> planning-with-files -> 放行。"""
         from enforcer import create_tracker, track_skill_call, should_block_tool_call
         create_tracker("l4flex3", "L4")
-        skills = ["deep-thinking", "openclaw-behavior-plan", "planning-with-files", "agent-pool"]
+        skills = ["deep-thinking", "openclaw-behavior-plan", "planning-with-files"]
         for i, skill in enumerate(skills):
             if i < len(skills) - 1:
                 blocked, _ = should_block_tool_call("l4flex3", "send_message", "L4")

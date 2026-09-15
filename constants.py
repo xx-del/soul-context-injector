@@ -81,7 +81,7 @@ SKILL_BINDINGS = {
     "W": ["workflow-manager"],  # 工作流任务 - 硬编码绑定
     "L2": ["deep-thinking"],
     "L3": ["deep-thinking", "openclaw-behavior-plan"],
-    "L4": ["planning-with-files", "agent-pool"],
+    "L4": ["planning-with-files"],
 }
 
 # 技能白名单 - 白名单内技能执行的所有操作跳过认证
@@ -134,7 +134,6 @@ EXECUTION_TYPES = {
 # L4 任务必须技能
 REQUIRED_SKILLS_L4 = [
     "planning-with-files",
-    "agent-pool",
 ]
 
 # 最大拦截次数（逃生舱阈值）

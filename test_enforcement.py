@@ -11,7 +11,7 @@ from enforcer import create_tracker, get_tracker, check_round_completion, track_
 def test_skill_bindings_defined():
     assert "L2" in SKILL_BINDINGS and SKILL_BINDINGS["L2"] == ["deep-thinking"]
     assert "L3" in SKILL_BINDINGS and SKILL_BINDINGS["L3"] == ["deep-thinking", "openclaw-behavior-plan"]
-    assert "L4" in SKILL_BINDINGS and SKILL_BINDINGS["L4"] == ["planning-with-files", "agent-pool"]
+    assert "L4" in SKILL_BINDINGS and SKILL_BINDINGS["L4"] == ["planning-with-files"]
     print("✓ 测试1通过：SKILL_BINDINGS已正确定义")
 
 def test_check_round_completion_empty():
@@ -50,8 +50,8 @@ def test_l4_requires_both_skills():
             create_tracker(session_id, "L4", force_reset=True)
             track_skill_call(session_id, "planning-with-files")
             is_complete, missing = check_round_completion(session_id, "L4")
-            assert not is_complete and "agent-pool" in missing
-            print("✓ 测试5通过：L4任务正确要求两个技能")
+            assert is_complete and len(missing) == 0
+            print("✓ 测试5通过：L4任务调用planning-with-files后即完成")
 
 def test_level_transition():
     with tempfile.TemporaryDirectory() as tmpdir:

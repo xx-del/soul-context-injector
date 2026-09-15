@@ -23,12 +23,11 @@ def test_l3_rule_has_plan():
 
 
 def test_l4_rule_has_execution():
-    """l4.md 规则文件应引用 planning-with-files + agent-pool"""
+    """l4.md 规则文件应引用 planning-with-files（agent-pool 已移除）"""
     path = os.path.join(RULES_DIR, "l4.md")
     with open(path, 'r', encoding='utf-8') as f:
         content = f.read()
     assert "planning-with-files" in content, "l4.md 未引用 planning-with-files"
-    assert "agent-pool" in content, "l4.md 未引用 agent-pool"
 
 
 def test_w_rule_exists():
