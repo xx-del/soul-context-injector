@@ -116,6 +116,27 @@ class TestL4ToolScoping:
         blocked, _ = should_block_tool_call("l4flex3", "send_message", "L4")
         assert blocked is False
 
+    def test_l4_only_requires_planning_with_files(self, temp_tracking_dir):
+        """L4 只需 planning-with-files 即可通过技能检查。"""
+        from enforcer import create_tracker, track_skill_call, check_round_completion
+        create_tracker("l4only", "L4")
+        is_complete, missing = check_round_completion("l4only", "L4")
+        assert not is_complete
+        assert missing == ["planning-with-files"]
+        track_skill_call("l4only", "planning-with-files")
+        is_complete, missing = check_round_completion("l4only", "L4")
+        assert is_complete
+        assert missing == []
+
+    def test_l4_agent_pool_not_required(self, temp_tracking_dir):
+        """L4 不调用 agent-pool 仍可通过技能检查。"""
+        from enforcer import create_tracker, track_skill_call, check_round_completion
+        create_tracker("l4nopool", "L4")
+        track_skill_call("l4nopool", "planning-with-files")
+        is_complete, missing = check_round_completion("l4nopool", "L4")
+        assert is_complete
+        assert "agent-pool" not in missing
+
 
 class TestL4EscapeHatch:
     """L4 逃生舱：输出工具连续拦截达到阈值后自动放行。"""
