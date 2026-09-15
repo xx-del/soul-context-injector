@@ -28,6 +28,16 @@ def test_l4_rule_has_execution():
     with open(path, 'r', encoding='utf-8') as f:
         content = f.read()
     assert "planning-with-files" in content, "l4.md 未引用 planning-with-files"
+    # agent-pool 不再是 L4 必需技能
+    # 注意：不排除文档中提及 agent-pool 作为可选参考
+
+
+def test_l4_rule_not强制_agent_pool():
+    """l4.md 不应包含 '必须使用agent-pool' 的强制要求"""
+    path = os.path.join(RULES_DIR, "l4.md")
+    with open(path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    assert "必须使用agent-pool" not in content, "l4.md 仍强制要求 agent-pool"
 
 
 def test_w_rule_exists():
