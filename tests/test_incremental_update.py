@@ -215,14 +215,12 @@ class TestIntegration:
         # Phase 3: 执行方案（L4）
         create_tracker(session_id, "L4")
 
-        # deep-thinking 已调用，需 planning-with-files, agent-pool
+        # planning-with-files 已调用（agent-pool 不再必需）
         track_skill_call(session_id, "planning-with-files")
-        track_skill_call(session_id, "agent-pool")
 
-        # L4 还需要实际执行
+        # L4 只需 planning-with-files 即可通过
         all_called, error = check_required_skills(session_id)
-        assert all_called == False  # 缺少 executed_by
-        assert "未执行实际任务" in error
+        assert all_called == True
 
         # 验证历史
         tracker = get_tracker(session_id)
