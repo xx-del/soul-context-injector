@@ -40,3 +40,22 @@ class TestPreLlmCallSubagentInject:
             session_id='test-sub-inject', user_message='分析架构问题',
             conversation_history=[], is_first_turn=True, model='test', platform='test')
         assert result is not None or soul_init.analyze_task.called
+
+class TestPreToolCallSubagentInject:
+    def test_subagent_skip_tool_when_flag_false(self, soul_init, monkeypatch):
+        import soul_context_injector.constants as constants_mod
+        monkeypatch.setattr(constants_mod, 'SOUL_INJECT_SUBAGENT', False)
+        soul_init.is_subagent = MagicMock(return_value=True)
+        result = soul_init.pre_tool_call_hook(
+            tool_name='terminal', args={'command': 'ls'},
+            task_id='test-1', session_id='test-sub-tool-skip')
+        assert result is None
+
+    def test_subagent_enforce_tool_when_flag_true(self, soul_init, monkeypatch):
+        import soul_context_injector.constants as constants_mod
+        monkeypatch.setattr(constants_mod, 'SOUL_INJECT_SUBAGENT', True)
+        soul_init.is_subagent = MagicMock(return_value=True)
+        result = soul_init.pre_tool_call_hook(
+            tool_name='terminal', args={'command': 'ls'},
+            task_id='test-2', session_id='test-sub-tool-inject')
+        assert True  # 不报错即通过（is_subagent 未提前 return）

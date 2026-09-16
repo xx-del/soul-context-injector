@@ -357,10 +357,13 @@ def pre_tool_call_hook(
                 logger.warning("[SOUL] 拦截工具调用: %s", tool_name)
                 return {"action": "block", "message": error_msg}
     
-    # Layer 1: 子 agent 放行 - 继承父 agent 权限
+    # Layer 1: 子 agent 放行 - 继承父 agent 权限（soul_inject_subagent=True 时不跳过）
     if is_subagent(session_id):
-        logger.info(f"[SOUL] 子 agent 放行: session={session_id}, tool={tool_name}")
-        return None
+        from .constants import SOUL_INJECT_SUBAGENT
+        if not SOUL_INJECT_SUBAGENT:
+            logger.info("[SOUL] 子 agent 放行: session=%s, tool=%s", session_id, tool_name)
+            return None
+        logger.info("[SOUL] 子 agent 注入模式（工具）: session=%s, tool=%s", session_id, tool_name)
     
     # 技能加载检测：skill_view 调用时自动设置 active_skill
     if tool_name == "skill_view" and args.get("name"):
