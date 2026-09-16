@@ -49,17 +49,28 @@ class TestGraduatedInterception:
     def test_violation_count_only_resets_on_missing_skill(self, temp_tracking_dir):
         """只在调用缺失的必需技能时重置 violation_count。"""
         from enforcer import create_tracker, should_block_tool_call, track_skill_call
+        from enforcer import _write_tracker_file
 
+        # === 场景1：调用缺失技能 → violation_count 应重置 ===
         session_id = "grad4"
         create_tracker(session_id, "L3")
         # L3 需要 deep-thinking + openclaw-behavior-plan
-        # 两个都没调用
+        should_block_tool_call(session_id, "terminal", "L3")  # violation_count=1
+        track_skill_call(session_id, "deep-thinking")  # 缺失的 → 重置为 0
+        blocked, _ = should_block_tool_call(session_id, "terminal", "L3")
+        assert blocked is False, "调用缺失技能应重置 violation_count（第2次=警告，不BLOCK）"
 
-        # 第1次违规
-        should_block_tool_call(session_id, "terminal", "L3")
-        # 调用 deep-thinking（已在累积中，不是缺失的）
-        track_skill_call(session_id, "deep-thinking")
-        # violation_count 应不被重置（deep-thinking 不是缺失技能）
-        # 第2次违规应 BLOCK
-        blocked, msg = should_block_tool_call(session_id, "terminal", "L3")
+        # === 场景2：调用非缺失技能 → violation_count 不应重置 ===
+        # 重置 tracker 状态：清空 called_skills，保留 required_skills
+        from enforcer import get_tracker
+        tracker = get_tracker(session_id)
+        tracker["current"]["called_skills"] = ["deep-thinking"]  # 只有 deep-thinking
+        tracker["violation_count"] = 0
+        _write_tracker_file(session_id, tracker)
+        # 此时 required=['deep-thinking','openclaw-behavior-plan'], called=['deep-thinking']
+        # openclaw-behavior-plan 仍缺失
+
+        should_block_tool_call(session_id, "terminal", "L3")  # violation_count=1
+        track_skill_call(session_id, "deep-thinking")  # 非缺失，is_new=False，不重置
+        blocked, _ = should_block_tool_call(session_id, "terminal", "L3")
         assert blocked is True, "调用非缺失技能不应重置 violation_count"
