@@ -30,6 +30,7 @@ def load_plugin_config():
         return {}
 
 _plugin_config = load_plugin_config()
+SOUL_INJECT_SUBAGENT = _plugin_config.get('soul_inject_subagent', False)
 
 # ============ 配置常量（从 config.yaml 读取） ============
 OLLAMA_URL = _plugin_config.get('ollama_url', "http://localhost:11434/api/generate")
