@@ -86,18 +86,17 @@ class TestLevelTransitionInjection:
         assert result is not None, "active_skill 不应阻断等级变化注入"
         assert "context" in result
 
-    def test_subagent_still_bypasses(self, soul_init):
-        """子 agent 不应受等级追踪影响"""
+    def test_subagent_respects_inject_flag(self, soul_init, monkeypatch):
+        """子 agent 行为取决于 SOUL_INJECT_SUBAGENT 标志"""
+        import soul_context_injector.constants as constants_mod
+        # flag=False 时跳过
+        monkeypatch.setattr(constants_mod, 'SOUL_INJECT_SUBAGENT', False)
         soul_init.is_subagent.return_value = True
         result = soul_init.pre_llm_call_hook(
-            session_id="subagent",
-            user_message="分析",
-            conversation_history=[],
-            is_first_turn=False,
-            model="deepseek-v4-flash",
-            platform="custom",
-        )
-        assert result is None, "子 agent 应放行"
+            session_id="subagent", user_message="分析",
+            conversation_history=[], is_first_turn=False,
+            model="deepseek-v4-flash", platform="custom")
+        assert result is None, "flag=False 时子 agent 应放行"
 
 
 class TestPostLlmCallLevelAware:
