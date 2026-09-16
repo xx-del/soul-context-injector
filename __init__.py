@@ -309,7 +309,15 @@ def pre_tool_call_hook(
     
     enforce = should_enforce(session_id)
     logger.info(f"[SOUL] should_enforce({session_id}) = {enforce}, tool={tool_name}")
-    
+
+    if not enforce:
+        from .state import get_last_injected_level
+        last_level = get_last_injected_level(session_id)
+        if last_level and last_level in ('L2', 'L3', 'L4', 'W'):
+            from .enforcer import ensure_tracker
+            ensure_tracker(session_id, last_level)
+            enforce = should_enforce(session_id)
+
     if enforce:
         # 追踪技能调用
         if tool_name == "skill_view":

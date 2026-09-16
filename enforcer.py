@@ -391,6 +391,13 @@ def get_tracker(session_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def ensure_tracker(session_id: str, task_level: str = 'L2') -> None:
+    tracker = get_tracker(session_id)
+    if not tracker:
+        create_tracker(session_id, task_level)
+        logger.info('[SOUL-ENFORCER] 延迟创建 tracker: session=%s, level=%s', session_id, task_level)
+
+
 def _write_tracker_file(session_id: str, tracker: dict) -> bool:
     """直接写入追踪器文件（内部函数）"""
     try:
