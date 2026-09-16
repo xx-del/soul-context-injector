@@ -113,25 +113,27 @@ def _throttled_cleanup():
             logger.error(f"[SOUL] 节流清理失败: {e}")
 
 
-# ============ 调查类消息豁免（v5.15.0） ============
+# ============ 调查类消息豁免（v5.15.0 精确匹配） ============
+
+# 精确匹配纯读取模式，排除分析类（排查错误、诊断故障等）
+_EXEMPT_PATTERNS = [
+    ("查看", "日志"), ("查看", "配置"), ("查看", "内容"),
+    ("搜索", "文件"), ("列出", "目录"), ("浏览", "文件"),
+    ("检查", "状态"), ("检查", "进程"), ("检查", "端口"),
+    ("排查", "状态"), ("诊断", "状态"),
+]
 
 
 def _is_investigation_message(user_message: str) -> bool:
-    """检测消息是否为调查类消息：含调查动词 + 代码/日志/配置名词。
+    """检测消息是否为调查类消息：精确匹配纯读取模式。
 
-    调查类消息仅需读取信息，不触发 L2 强制（deep-thinking 技能要求）。
-    必须同时包含调查动词和技术名词才生效，避免"查看进度"等非技术查询误触发。
+    只有特定的"动词+名词"组合才豁免，分析/诊断/排查错误类不豁免。
     """
     if not user_message or not user_message.strip():
         return False
-    try:
-        from .constants import INVESTIGATION_VERBS, INVESTIGATION_NOUNS
-    except (ImportError, SystemError):
-        from constants import INVESTIGATION_VERBS, INVESTIGATION_NOUNS
     msg_lower = user_message.lower()
-    has_verb = any(kw in msg_lower for kw in INVESTIGATION_VERBS)
-    has_noun = any(kw in msg_lower for kw in INVESTIGATION_NOUNS)
-    return has_verb and has_noun
+    return any(verb in msg_lower and noun in msg_lower
+               for verb, noun in _EXEMPT_PATTERNS)
 
 
 # ============ 分析类任务检测（v5.14.0） ============
@@ -225,22 +227,35 @@ def pre_llm_call_hook(
         context = build_context(task_level, decision, user_message, session_id)
 
         # 每轮强制约束：追加缺少技能的强制提示
-        if task_level in ("L2", "L3", "L4"):
+        enforcement_msg = ""
+
+        # L2 特殊处理 - 检查 round_skills（轮次级强制）
+        if task_level == "L2":
+            from .enforcer import get_tracker
+            tracker = get_tracker(session_id)
+            if tracker:
+                round_skills = tracker.get("current", {}).get("round_skills", [])
+                if "deep-thinking" not in round_skills:
+                    enforcement_msg += "\n\n⚠️ 【轮次强制】L2 任务每轮必须先调用 deep-thinking 才能输出分析内容。\n"
+                    enforcement_msg += "本轮尚未调用 deep-thinking，请立即调用。\n"
+
+        elif task_level in ("L3", "L4"):
             from .enforcer import check_round_completion
             is_complete, missing_skills = check_round_completion(session_id, task_level)
             if not is_complete and missing_skills:
-                enforcement_msg = "\n\n⚠️ 【强制执行约束】\n"
+                enforcement_msg += "\n\n⚠️ 【强制执行约束】\n"
                 enforcement_msg += "任务等级: " + task_level + "\n"
                 enforcement_msg += "缺少必须技能: " + ", ".join(missing_skills) + "\n"
                 enforcement_msg += "必须在本轮调用以上技能，不能跳过。\n"
-                context = (context or "") + enforcement_msg
+
+        if enforcement_msg:
+            context = (context or "") + enforcement_msg
         
         # 4. 创建技能追踪（L2/L3/L4/W 任务）
-        #    新请求时 force_reset=True 清空 called_skills，确保每轮重新强制
-        #    （能到达此处说明 should_skip_injection 返回 False = 新请求）
+        #    force_reset=False：让 enforcer 的累积逻辑处理，不再强制清空
         if task_level in ["L2", "L3", "L4", "W"]:
             from .enforcer import create_tracker, get_tracker
-            create_tracker(session_id, task_level, force_reset=True)
+            create_tracker(session_id, task_level, force_reset=False)
             
             # 新增：等级转换时检查技能需求
             tracker = get_tracker(session_id)

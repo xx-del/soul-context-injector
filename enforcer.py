@@ -117,13 +117,28 @@ def should_block_tool_call(session_id: str, tool_name: str, task_level: str) -> 
     is_complete, missing_skills = check_round_completion(session_id, task_level)
 
     if not is_complete and missing_skills:
-        # v5.14.0 范围缩窄：非输出工具只警告不 BLOCK（与 check_required_skills 对齐）
+        # 分级拦截：非输出工具首次警告，二次 BLOCK
         if tool_name and tool_name not in OUTPUT_TOOLS:
-            logger.warning(
-                "[SOUL-ENFORCER] 技能缺失但放行(范围缩窄): "
-                "session=" + session_id + ", missing=" + str(missing_skills) + ", tool=" + tool_name
-            )
-            return False, None
+            tracker = get_tracker(session_id)
+            if tracker:
+                violation_count = tracker.get("violation_count", 0) + 1
+                _update_tracker_data(session_id, {"violation_count": violation_count})
+
+                if violation_count >= GRADUATED_BLOCK_THRESHOLD:
+                    # 第2次：BLOCK
+                    error_msg = (
+                        "【强制执行约束】你必须先调用skill_view加载必须技能: "
+                        + ", ".join(missing_skills)
+                        + "。禁止调用其他工具！"
+                    )
+                    return True, error_msg
+                else:
+                    # 第1次：警告放行
+                    logger.warning(
+                        "[SOUL-ENFORCER] 首次违规警告: "
+                        "session=" + session_id + ", tool=" + tool_name
+                    )
+                    return False, None
 
         # 逃生舱：递增 escape_attempts，达到阈值自动放行
         tracker = get_tracker(session_id)
@@ -159,7 +174,8 @@ def migrate_tracker(old_tracker: Dict) -> Dict:
         "updated_at": old_tracker.get("updated_at", now),
         "current": {
             "required_skills": old_tracker.get("required_skills", []),
-            "called_skills": old_tracker.get("called_skills", [])
+            "called_skills": old_tracker.get("called_skills", []),
+            "round_skills": [],
         },
         "history": [],
         "metadata": {
@@ -209,7 +225,8 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
             "updated_at": now,
             "current": {
                 "required_skills": required_skills,
-                "called_skills": []
+                "called_skills": [],
+                "round_skills": [],  # 本轮调用（每轮清空）
             },
             "history": [],
             "metadata": {
@@ -239,7 +256,8 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
                     "updated_at": now,
                     "current": {
                         "required_skills": required_skills,
-                        "called_skills": [] if old_complete else list(prev_called),
+                        "called_skills": list(prev_called),  # 累积模式：只增不减
+                        "round_skills": [],  # 每轮清空
                     },
                     "history": old_tracker.get("history", []),
                     "escape_attempts": 0,
@@ -283,7 +301,8 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
             "updated_at": now,
             "current": {
                 "required_skills": required_skills,
-                "called_skills": []  # 等级转换时清空called_skills
+                "called_skills": [],  # 等级转换时清空called_skills
+                "round_skills": [],  # 等级转换时清空
             },
             "history": history,
             "metadata": {
@@ -492,13 +511,21 @@ def track_skill_call(session_id: str, skill_name: str) -> bool:
     if current:
         # 新格式
         called_skills = current.get("called_skills", [])
+        round_skills = current.get("round_skills", [])
     else:
         # 旧格式
         called_skills = tracker.get("called_skills", [])
+        round_skills = []
 
     is_new = skill_name not in called_skills
     if is_new:
         called_skills.append(skill_name)
+
+    # 更新 round_skills（本轮调用记录）
+    if skill_name not in round_skills:
+        round_skills.append(skill_name)
+    if current:
+        current["round_skills"] = round_skills
 
     # 无条件续期滑动窗口基准（重复调用同一技能也要刷新）
     metadata = tracker.get("metadata", {})
@@ -589,10 +616,8 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
     # 检查技能调用
     missing_skills = [s for s in required if s not in called]
 
-    # L4 任务检查实际执行
+    # L4 任务不再强制要求 agent_pool_client 执行（delegate_task 由 Hermes 内置支持）
     missing_execution = False
-    if task_level == "L4" and not executed_by:
-        missing_execution = True
     
     if missing_skills or missing_execution:
         # 非输出工具：按 task_level 分级处理
@@ -623,7 +648,7 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
             error_parts.append(f"未调用必须技能: {', '.join(missing_skills)}")
         
         if missing_execution:
-            error_parts.append("未执行实际任务（需调用 delegate_task 或 agent_pool_client）")
+            error_parts.append("未执行实际任务（需调用 delegate_task）")
         
         error_text = "\n".join(error_parts)
         
@@ -640,15 +665,12 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
 【正确流程】
 
 1. skill_view("planning-with-files")
-2. skill_view("agent-pool")
-3. delegate_task() 或 agent_pool_client.execute()
-4. 输出结果
+2. delegate_task()
+3. 输出结果
 
 ---
 
 【回退选项】
-
-如果 agent-pool 不可用：
 
 **选项 A: 回退到 L3（生成方案）**
 1. skill_view("deep-thinking")
