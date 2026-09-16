@@ -57,3 +57,21 @@ class TestRoundSkills:
         tracker = get_tracker(session_id)
         round_skills = tracker["current"].get("round_skills", [])
         assert "deep-thinking" not in round_skills, "round_skills 应为空（本轮未调用）"
+
+    def test_same_level_new_request_clears_round_skills(self, temp_tracking_dir):
+        """同等级新请求时 round_skills 清空，called_skills 保留。"""
+        from enforcer import create_tracker, track_skill_call, get_tracker
+
+        session_id = "round3"
+        # 第1轮：调用 deep-thinking
+        create_tracker(session_id, "L2", force_reset=True)
+        track_skill_call(session_id, "deep-thinking")
+
+        # 第2轮：同等级，force_reset=False
+        create_tracker(session_id, "L2", force_reset=False)
+        tracker = get_tracker(session_id)
+        round_skills = tracker["current"].get("round_skills", [])
+        called_skills = tracker["current"]["called_skills"]
+
+        assert "deep-thinking" not in round_skills, "round_skills 应被清空"
+        assert "deep-thinking" in called_skills, "called_skills 应保留"

@@ -277,7 +277,25 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
                     json.dump(tracker_data, f, ensure_ascii=False, indent=2)
                 return tracker_file
             else:
-                logger.debug(f"[SOUL-ENFORCER] 等级相同，跳过更新: {session_id}")
+                # 同等级新请求：清空 round_skills（每轮重新强制），保留 called_skills（累积）
+                prev_called = old_tracker.get("current", {}).get("called_skills", [])
+                tracker_data = {
+                    "session_id": session_id,
+                    "task_level": task_level,
+                    "created_at": old_tracker.get("created_at"),
+                    "updated_at": now,
+                    "current": {
+                        "required_skills": required_skills,
+                        "called_skills": list(prev_called),
+                        "round_skills": [],  # 清空 round_skills
+                    },
+                    "history": old_tracker.get("history", []),
+                    "escape_attempts": 0,
+                    "metadata": old_tracker.get("metadata", {}),
+                }
+                logger.info(f"[SOUL-ENFORCER] 同等级新请求清空 round_skills: {session_id}")
+                with file_lock(tracker_file, "w") as f:
+                    json.dump(tracker_data, f, ensure_ascii=False, indent=2)
                 return tracker_file
 
         # 等级转换
