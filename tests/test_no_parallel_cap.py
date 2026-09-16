@@ -39,10 +39,15 @@ class TestConstantsKeepNameForCompat:
         import sys
         src = AGENT_POOL_DIR / "src"
         sys.path.insert(0, str(src))
+        prev = sys.modules.pop('constants', None)
         try:
             import constants
             assert hasattr(constants, "MAX_CONCURRENT_AGENTS")
         finally:
+            if 'constants' in sys.modules:
+                del sys.modules['constants']
+            if prev is not None:
+                sys.modules['constants'] = prev
             if str(src) in sys.path:
                 sys.path.remove(str(src))
 
@@ -50,9 +55,14 @@ class TestConstantsKeepNameForCompat:
         import sys
         src = AGENT_POOL_DIR / "src"
         sys.path.insert(0, str(src))
+        prev = sys.modules.pop('constants', None)
         try:
             import constants
             assert constants.MAX_CONCURRENT_AGENTS != 3, "MAX_CONCURRENT_AGENTS 仍为硬编码 3"
         finally:
+            if 'constants' in sys.modules:
+                del sys.modules['constants']
+            if prev is not None:
+                sys.modules['constants'] = prev
             if str(src) in sys.path:
                 sys.path.remove(str(src))
