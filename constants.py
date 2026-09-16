@@ -164,6 +164,10 @@ SENSITIVE_PATTERNS = [
 # phase_info 最大长度
 PHASE_INFO_MAX_LENGTH = 200
 
+# 分级拦截阈值
+GRADUATED_WARN_THRESHOLD = 1  # 首次警告
+GRADUATED_BLOCK_THRESHOLD = 2  # 二次 BLOCK
+
 # ============ 调查类消息豁免（v5.15.0） ============
 # 调查动词：仅需读取信息的操作
 INVESTIGATION_VERBS = frozenset({

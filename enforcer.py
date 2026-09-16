@@ -24,7 +24,7 @@ try:
         EXECUTION_TYPES, REQUIRED_SKILLS_L4, MAX_ESCAPE_ATTEMPTS,
         EXECUTION_TIMEOUT_SECONDS, TRACKER_TTL_SECONDS,
         TERMINAL_DETECTION_PATTERNS, SENSITIVE_PATTERNS, PHASE_INFO_MAX_LENGTH,
-        OUTPUT_TOOLS, HERMES_HOME,
+        OUTPUT_TOOLS, HERMES_HOME, GRADUATED_WARN_THRESHOLD, GRADUATED_BLOCK_THRESHOLD,
     )
 except ImportError:
     import logging
@@ -54,6 +54,8 @@ except ImportError:
     PHASE_INFO_MAX_LENGTH = 200
     OUTPUT_TOOLS = {"send_message", "text_to_speech"}
     HERMES_HOME = Path('/home/kali/.hermes')
+    GRADUATED_WARN_THRESHOLD = 1  # 首次警告
+    GRADUATED_BLOCK_THRESHOLD = 2  # 二次 BLOCK
 
 # 追踪文件目录
 TRACKING_DIR = HERMES_HOME / "skill-tracking"
@@ -535,6 +537,11 @@ def track_skill_call(session_id: str, skill_name: str) -> bool:
     if is_new:
         metadata["total_calls"] = metadata.get("total_calls", 0) + 1
     metadata["last_skill_at"] = datetime.datetime.now().isoformat()
+
+    # 调用必需技能后重置违规计数
+    required_skills = current.get("required_skills", [])
+    if skill_name in required_skills:
+        tracker["violation_count"] = 0
 
     update_tracker(session_id, tracker)
     logger.info(
