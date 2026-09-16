@@ -58,7 +58,7 @@ class TestTrackerForceReset:
     """create_tracker force_reset 应在新请求时清空 called_skills。"""
 
     def test_force_reset_clears_called_skills(self, temp_tracking_dir):
-        """force_reset=True 时 called_skills 应被清空"""
+        """force_reset=True 时 called_skills 保留（累积模式）"""
         from enforcer import create_tracker, get_tracker, track_skill_call
 
         session_id = "test_force_reset"
@@ -69,12 +69,12 @@ class TestTrackerForceReset:
         tracker = get_tracker(session_id)
         assert "deep-thinking" in tracker["current"]["called_skills"]
 
-        # force_reset 重置
+        # force_reset 重置（累积模式：保留 called_skills）
         create_tracker(session_id, "L2", force_reset=True)
 
         tracker = get_tracker(session_id)
-        assert tracker["current"]["called_skills"] == [], \
-            f"force_reset 应清空 called_skills，实际: {tracker['current']['called_skills']}"
+        assert "deep-thinking" in tracker["current"]["called_skills"], \
+            f"累积模式下 force_reset 应保留 called_skills，实际: {tracker['current']['called_skills']}"
 
     def test_force_reset_preserves_level_and_history(self, temp_tracking_dir):
         """force_reset 应保留等级和历史"""
@@ -210,11 +210,12 @@ class TestTrackerResetOnNewRequest:
                 model="test", platform="test",
             )
 
-            # 验证 tracker 被重置
+            # 验证 tracker 存在（累积模式：called_skills 不再被清空）
             tracker = get_tracker(session_id)
             assert tracker is not None, "Tracker 应存在"
-            assert tracker["current"]["called_skills"] == [], \
-                f"新请求应重置 called_skills，实际: {tracker['current']['called_skills']}"
+            # 累积模式：called_skills 保留上一轮的调用
+            assert "deep-thinking" in tracker["current"]["called_skills"], \
+                f"累积模式下 called_skills 应保留，实际: {tracker['current']['called_skills']}"
         finally:
             if tracker_file.exists():
                 tracker_file.unlink()

@@ -92,10 +92,13 @@ class TestInvestigationExemptionIsInvestigationMessage:
 
     def test_has_both_verb_and_noun(self):
         from __init__ import _is_investigation_message
-        assert _is_investigation_message("查看代码") is True
-        assert _is_investigation_message("排查日志问题") is True
-        assert _is_investigation_message("检查配置文件") is True
-        assert _is_investigation_message("check the logs") is True
+        # 精确匹配模式：必须是预定义的 verb+noun 组合
+        assert _is_investigation_message("查看日志内容") is True
+        assert _is_investigation_message("检查进程状态") is True
+        # 旧的宽泛匹配不再生效（分析类不应豁免）
+        assert _is_investigation_message("查看代码") is False
+        assert _is_investigation_message("排查日志问题") is False
+        assert _is_investigation_message("检查配置文件") is False
 
     def test_only_verb(self):
         from __init__ import _is_investigation_message

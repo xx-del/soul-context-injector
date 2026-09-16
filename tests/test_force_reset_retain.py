@@ -43,7 +43,7 @@ class TestForceResetRetain:
             "未完成轮次应保留已调用技能"
 
     def test_l2_completed_clears_called_skills(self, temp_tracking_dir):
-        """L2 上一轮已完成（deep-thinking 已调用）：force_reset 正常清空。"""
+        """L2 上一轮已完成（deep-thinking 已调用）：force_reset 保留 called_skills（累积模式）。"""
         from enforcer import create_tracker, track_skill_call, get_tracker
 
         sid = "reset_complete_l2"
@@ -53,8 +53,8 @@ class TestForceResetRetain:
         create_tracker(sid, "L2", force_reset=True)
 
         tracker = get_tracker(sid)
-        assert tracker["current"]["called_skills"] == [], \
-            "已完成轮次应清空 called_skills"
+        assert "deep-thinking" in tracker["current"]["called_skills"], \
+            "累积模式下 force_reset 应保留 called_skills"
 
     def test_l3_nothing_called_stays_empty(self, temp_tracking_dir):
         """L3 上一轮完全未调用技能：force_reset 后仍为空（必须从零开始）。"""
