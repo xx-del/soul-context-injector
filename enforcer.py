@@ -314,6 +314,7 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
         if len(history) > 10:
             history = history[-10:]
 
+        prev_called = old_tracker.get("current", {}).get("called_skills", [])
         tracker_data = {
             "session_id": session_id,
             "task_level": task_level,
@@ -321,8 +322,8 @@ def create_tracker(session_id: str, task_level: str, force_reset: bool = False) 
             "updated_at": now,
             "current": {
                 "required_skills": required_skills,
-                "called_skills": [],  # 等级转换时清空called_skills
-                "round_skills": [],  # 等级转换时清空
+                "called_skills": list(prev_called),  # 累积模式：保留已调用技能
+                "round_skills": [],  # 等级转换时清空 round_skills
             },
             "history": history,
             "metadata": {
