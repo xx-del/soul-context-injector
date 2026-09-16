@@ -557,10 +557,13 @@ def track_skill_call(session_id: str, skill_name: str) -> bool:
         metadata["total_calls"] = metadata.get("total_calls", 0) + 1
     metadata["last_skill_at"] = datetime.datetime.now().isoformat()
 
-    # 调用必需技能后重置违规计数
+    # 调用必需技能后重置违规计数（仅当所有必需技能都已调用时）
+    # 只在调用缺失技能并完成本轮时重置，防止 AI 通过重复调用已满足技能绕过拦截
     required_skills = current.get("required_skills", [])
-    if skill_name in required_skills:
-        tracker["violation_count"] = 0
+    if is_new:
+        missing_after = [s for s in required_skills if s not in called_skills]
+        if not missing_after:
+            tracker["violation_count"] = 0
 
     update_tracker(session_id, tracker)
     logger.info(
