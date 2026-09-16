@@ -311,12 +311,23 @@ def pre_tool_call_hook(
     logger.info(f"[SOUL] should_enforce({session_id}) = {enforce}, tool={tool_name}")
 
     if not enforce:
-        from .state import get_last_injected_level
-        last_level = get_last_injected_level(session_id)
-        if last_level and last_level in ('L2', 'L3', 'L4', 'W'):
-            from .enforcer import ensure_tracker
-            ensure_tracker(session_id, last_level)
-            enforce = should_enforce(session_id)
+        from .enforcer import ensure_tracker, get_tracker
+        tracker_level = None
+        if is_subagent(session_id):
+            from .subagent_detector import get_parent_session_id
+            parent_id = get_parent_session_id(session_id)
+            if parent_id:
+                parent_tracker = get_tracker(parent_id)
+                if parent_tracker:
+                    tracker_level = parent_tracker.get('task_level')
+        if not tracker_level:
+            from .state import get_last_injected_level
+            tracker_level = get_last_injected_level(session_id)
+        if not tracker_level or tracker_level not in ('L2', 'L3', 'L4', 'W'):
+            tracker_level = 'L2'
+        ensure_tracker(session_id, tracker_level)
+        enforce = should_enforce(session_id)
+        logger.info('[SOUL] 延迟创建 tracker: session=%s, level=%s', session_id, tracker_level)
 
     if enforce:
         # 追踪技能调用

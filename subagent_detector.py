@@ -87,3 +87,24 @@ def is_subagent(session_id: str) -> bool:
     finally:
         if conn:
             conn.close()
+
+
+def get_parent_session_id(session_id: str):
+    """查询 session 的 parent_session_id"""
+    if not session_id or not _STATE_DB_PATH.exists():
+        return None
+    conn = None
+    try:
+        conn = sqlite3.connect(str(_STATE_DB_PATH), timeout=5.0)
+        conn.execute('PRAGMA journal_mode=WAL')
+        cursor = conn.cursor()
+        cursor.execute('SELECT parent_session_id FROM sessions WHERE id = ?', (session_id,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            return row[0]
+    except Exception as e:
+        logger.debug('[SOUL] 查询 parent_session_id 失败: %s', e)
+    finally:
+        if conn:
+            conn.close()
+    return None

@@ -95,3 +95,23 @@ class TestEnsureTracker:
         tracker = get_tracker(session_id)
         assert tracker is not None
         assert tracker["task_level"] == "L2"
+
+
+class TestGetParentSessionId:
+    def test_returns_none_for_nonexistent(self):
+        from soul_context_injector.subagent_detector import get_parent_session_id
+        result = get_parent_session_id('nonexistent_session_id')
+        assert result is None
+
+    def test_callable(self):
+        from soul_context_injector.subagent_detector import get_parent_session_id
+        assert callable(get_parent_session_id)
+
+
+class TestParentTrackerInheritance:
+    def test_no_parent_defaults_to_l2(self, tracking_dir):
+        from soul_context_injector.enforcer import ensure_tracker, get_tracker
+        session = 'orphan-session-test'
+        ensure_tracker(session)
+        tracker = get_tracker(session)
+        assert tracker['task_level'] == 'L2'
