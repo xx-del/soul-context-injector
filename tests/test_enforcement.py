@@ -9,7 +9,7 @@ sys.path.insert(0, str(PLUGIN_DIR))
 
 
 def test_level_transition_clears_called_skills():
-    """测试等级转换时called_skills被正确清空"""
+    """测试等级转换时called_skills保留（累积模式），round_skills清空"""
     from enforcer import create_tracker, get_tracker, check_round_completion
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -28,10 +28,14 @@ def test_level_transition_clears_called_skills():
             # 转换到W等级
             create_tracker(session_id, "W", force_reset=True)
 
-            # 验证called_skills被清空
+            # 验证called_skills保留（累积模式）
             tracker = get_tracker(session_id)
             called_skills = tracker.get("current", {}).get("called_skills", [])
-            assert len(called_skills) == 0, "等级转换后called_skills应该被清空"
+            assert "deep-thinking" in called_skills, "累积模式下called_skills应保留"
+
+            # 验证round_skills被清空
+            round_skills = tracker.get("current", {}).get("round_skills", [])
+            assert len(round_skills) == 0, "等级转换后round_skills应该被清空"
 
             # 验证W等级需要workflow-manager
             is_complete, missing = check_round_completion(session_id, "W")

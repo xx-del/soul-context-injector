@@ -69,7 +69,7 @@ class TestForceResetRetain:
         assert tracker["current"]["called_skills"] == []
 
     def test_level_transition_still_clears(self, temp_tracking_dir):
-        """等级转换（L2→L3）始终清空 called_skills（既有语义不变）。"""
+        """等级转换（L2→L3）保留 called_skills（累积模式），只清空 round_skills。"""
         from enforcer import create_tracker, track_skill_call, get_tracker
 
         sid = "reset_transition"
@@ -79,8 +79,10 @@ class TestForceResetRetain:
         create_tracker(sid, "L3", force_reset=True)
 
         tracker = get_tracker(sid)
-        assert tracker["current"]["called_skills"] == [], \
-            "等级转换应清空 called_skills"
+        assert "deep-thinking" in tracker["current"]["called_skills"], \
+            "累积模式下等级转换应保留 called_skills"
+        assert tracker["current"]["round_skills"] == [], \
+            "等级转换应清空 round_skills"
 
     def test_completed_ignores_force_reset_flag_consistency(self, temp_tracking_dir):
         """同等级已完成且 force_reset=False：不更新（既有行为）。"""

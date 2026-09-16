@@ -44,7 +44,7 @@ class TestLevelTransition:
     """测试任务等级转换"""
 
     def test_l2_to_l3_transition(self, temp_tracking_dir):
-        """L2 → L3 转换应清空 called_skills（3ac68f2 语义：防永久 block）"""
+        """L2 → L3 转换保留 called_skills（累积模式）"""
         session_id = "test_l2_to_l3"
 
         # Turn 1: L2 任务
@@ -58,11 +58,14 @@ class TestLevelTransition:
         # Turn 2: L3 任务（等级转换）
         create_tracker(session_id, "L3")
 
-        # 验证 current.called_skills 被清空（3ac68f2 字面语义）
+        # 验证 called_skills 保留 deep-thinking（累积模式）
         tracker = get_tracker(session_id)
-        assert tracker["current"]["called_skills"] == []
+        assert "deep-thinking" in tracker["current"]["called_skills"]
 
-        # 验证 deep-thinking 经 history 合并仍计为已调用，只需补 openclaw-behavior-plan
+        # 验证 round_skills 被清空
+        assert tracker["current"]["round_skills"] == []
+
+        # 验证 L3 只需补 openclaw-behavior-plan
         all_called, error = check_required_skills(session_id)
         assert all_called == False
         assert "openclaw-behavior-plan" in error
@@ -75,7 +78,7 @@ class TestLevelTransition:
         assert all_called == True
 
     def test_l3_to_l2_downgrade(self, temp_tracking_dir):
-        """L3 → L2 降级应清空 called_skills（3ac68f2 语义：防永久 block）"""
+        """L3 → L2 降级保留 called_skills（累积模式）"""
         session_id = "test_l3_to_l2"
 
         # Turn 1: L3 任务
@@ -86,11 +89,12 @@ class TestLevelTransition:
         # Turn 2: L2 任务（降级）
         create_tracker(session_id, "L2")
 
-        # 验证：current.called_skills 被清空（3ac68f2 字面语义）
+        # 验证 called_skills 保留（累积模式）
         tracker = get_tracker(session_id)
-        assert tracker["current"]["called_skills"] == []
+        assert "deep-thinking" in tracker["current"]["called_skills"]
+        assert "openclaw-behavior-plan" in tracker["current"]["called_skills"]
 
-        # 验证：L2 已完成（deep-thinking 经 history 合并仍计为已调用）
+        # 验证 L2 已完成（deep-thinking 在累积中）
         all_called, _ = check_required_skills(session_id)
         assert all_called == True
 
