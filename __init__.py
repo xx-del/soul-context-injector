@@ -176,10 +176,13 @@ def pre_llm_call_hook(
     if not user_message or not user_message.strip():
         return None
     
-    # Layer 0: 子 agent 放行 - 跳过上下文注入
+    # Layer 0: 子 agent 放行 - 跳过上下文注入（soul_inject_subagent=True 时不跳过）
     if is_subagent(session_id):
-        logger.info(f"[SOUL] 子 agent 放行（LLM）: session={session_id}")
-        return None
+        from .constants import SOUL_INJECT_SUBAGENT
+        if not SOUL_INJECT_SUBAGENT:
+            logger.info("[SOUL] 子 agent 放行（LLM）: session=%s", session_id)
+            return None
+        logger.info("[SOUL] 子 agent 注入模式（LLM）: session=%s", session_id)
 
     logger.debug(f"[soul] 处理消息: {user_message[:100]}...")
     
