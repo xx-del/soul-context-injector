@@ -142,22 +142,22 @@ class TestL4EscapeHatch:
     """L4 逃生舱：输出工具连续拦截达到阈值后自动放行。"""
 
     def test_escape_releases_after_max_attempts(self, temp_tracking_dir):
-        from enforcer import create_tracker, should_block_tool_call
+        from enforcer import create_tracker, should_block_tool_call, MAX_ESCAPE_ATTEMPTS
         create_tracker("l4esc1", "L4")
-        for i in range(3):
+        for i in range(MAX_ESCAPE_ATTEMPTS):
             blocked, _ = should_block_tool_call("l4esc1", "send_message", "L4")
             assert blocked is True, f"Attempt {i+1} should be blocked"
         blocked, _ = should_block_tool_call("l4esc1", "send_message", "L4")
         assert blocked is False
 
     def test_escape_resets_on_level_transition(self, temp_tracking_dir):
-        from enforcer import create_tracker, should_block_tool_call
+        from enforcer import create_tracker, should_block_tool_call, MAX_ESCAPE_ATTEMPTS
         create_tracker("l4esc2", "L4")
         for _ in range(2):
             should_block_tool_call("l4esc2", "send_message", "L4")
         create_tracker("l4esc2", "L3", force_reset=True)
         create_tracker("l4esc2", "L4", force_reset=True)
-        for i in range(3):
+        for i in range(MAX_ESCAPE_ATTEMPTS):
             blocked, _ = should_block_tool_call("l4esc2", "send_message", "L4")
             assert blocked is True, f"After reset, attempt {i+1} should be blocked"
 

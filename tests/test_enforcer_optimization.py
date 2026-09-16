@@ -10,11 +10,11 @@ sys.path.insert(0, str(PLUGIN_DIR))
 class TestTimeoutConstants:
     """验证超时参数已按计划降低。"""
 
-    def test_max_escape_attempts_is_3(self):
-        """MAX_ESCAPE_ATTEMPTS 应从 7 降为 3。"""
+    def test_max_escape_attempts_is_5(self):
+        """MAX_ESCAPE_ATTEMPTS 应为 5（给 AI 更多纠正机会）。"""
         from soul_context_injector.constants import MAX_ESCAPE_ATTEMPTS
-        assert MAX_ESCAPE_ATTEMPTS == 3, (
-            f"MAX_ESCAPE_ATTEMPTS 应为 3，实际为 {MAX_ESCAPE_ATTEMPTS}"
+        assert MAX_ESCAPE_ATTEMPTS == 5, (
+            f"MAX_ESCAPE_ATTEMPTS 应为 5，实际为 {MAX_ESCAPE_ATTEMPTS}"
         )
 
     def test_execution_timeout_is_300(self):

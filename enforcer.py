@@ -24,7 +24,7 @@ try:
         EXECUTION_TYPES, REQUIRED_SKILLS_L4, MAX_ESCAPE_ATTEMPTS,
         EXECUTION_TIMEOUT_SECONDS, TRACKER_TTL_SECONDS,
         TERMINAL_DETECTION_PATTERNS, SENSITIVE_PATTERNS, PHASE_INFO_MAX_LENGTH,
-        OUTPUT_TOOLS, HERMES_HOME, GRADUATED_WARN_THRESHOLD, GRADUATED_BLOCK_THRESHOLD,
+        OUTPUT_TOOLS, INFO_TOOLS, HERMES_HOME, GRADUATED_WARN_THRESHOLD, GRADUATED_BLOCK_THRESHOLD,
     )
 except ImportError:
     import logging
@@ -46,16 +46,17 @@ except ImportError:
         "PYTHON_API": "python_api",
     }
     REQUIRED_SKILLS_L4 = ["planning-with-files"]
-    MAX_ESCAPE_ATTEMPTS = 3  # v5.12.0: 降低：3 次足以判断合规意图
+    MAX_ESCAPE_ATTEMPTS = 5  # 给 AI 更多纠正机会
     EXECUTION_TIMEOUT_SECONDS = 300  # 空闲阈值：距最近一次必需技能调用超过此值视为空闲超时（与 constants.py 保持同步）
     TRACKER_TTL_SECONDS = 86400
     TERMINAL_DETECTION_PATTERNS = []
     SENSITIVE_PATTERNS = []
     PHASE_INFO_MAX_LENGTH = 200
     OUTPUT_TOOLS = {"send_message", "text_to_speech"}
+    INFO_TOOLS = {"terminal", "read_file", "search_files", "delegate_task", "web_search", "memory", "clarify"}
     HERMES_HOME = Path('/home/kali/.hermes')
     GRADUATED_WARN_THRESHOLD = 1  # 首次警告
-    GRADUATED_BLOCK_THRESHOLD = 2  # 二次 BLOCK
+    GRADUATED_BLOCK_THRESHOLD = 3  # 给 AI 更多纠正机会
 
 # 追踪文件目录
 TRACKING_DIR = HERMES_HOME / "skill-tracking"
@@ -119,6 +120,14 @@ def should_block_tool_call(session_id: str, tool_name: str, task_level: str) -> 
     is_complete, missing_skills = check_round_completion(session_id, task_level)
 
     if not is_complete and missing_skills:
+        # 信息获取工具：只记录不拦截
+        if tool_name and tool_name in INFO_TOOLS:
+            logger.info(
+                f"[SOUL-ENFORCER] 信息获取工具放行: session={session_id}, "
+                f"tool={tool_name}, missing={missing_skills}"
+            )
+            return False, None
+
         # 分级拦截：非输出工具首次警告，二次 BLOCK
         if tool_name and tool_name not in OUTPUT_TOOLS:
             tracker = get_tracker(session_id)
@@ -650,6 +659,14 @@ def check_required_skills(session_id: str, tool_name: str = None, task_level: st
     missing_execution = False
     
     if missing_skills or missing_execution:
+        # 信息获取工具：只记录不拦截
+        if tool_name and tool_name in INFO_TOOLS:
+            logger.info(
+                f"[SOUL-ENFORCER] 信息获取工具放行: tool={tool_name}, "
+                f"missing={missing_skills}, session={session_id}"
+            )
+            return True, None
+
         # 非输出工具：按 task_level 分级处理
         if tool_name and tool_name not in OUTPUT_TOOLS:
             # L2/L3：信息获取工具放行（范围缩窄：不拦截非输出工具）

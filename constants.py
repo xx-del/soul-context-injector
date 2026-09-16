@@ -65,6 +65,18 @@ OUTPUT_TOOLS = {
     "text_to_speech",    # 语音输出（最终输出）
 }
 
+# 信息获取工具 - 完全放行（只记录不拦截）
+# execute_code/patch 不在其中（它们有副作用）
+INFO_TOOLS = {
+    "terminal",          # 终端命令执行（信息获取为主）
+    "read_file",         # 文件读取
+    "search_files",      # 文件搜索
+    "delegate_task",     # 子代理委派
+    "web_search",        # 网络搜索
+    "memory",            # 记忆检索
+    "clarify",           # 澄清问题
+}
+
 # 工具调用白名单 - 这些工具在required_skills未调用时仍可执行
 # 避免拦截基础工具导致功能异常
 TOOL_WHITELIST = {
@@ -137,7 +149,7 @@ REQUIRED_SKILLS_L4 = [
 ]
 
 # 最大拦截次数（逃生舱阈值）
-MAX_ESCAPE_ATTEMPTS = 3  # v5.12.0: 降低：3 次足以判断合规意图
+MAX_ESCAPE_ATTEMPTS = 5  # 给 AI 更多纠正机会
 
 # 执行超时（秒）
 EXECUTION_TIMEOUT_SECONDS = 300  # 空闲阈值：距最近一次必需技能调用超过此值视为空闲超时
@@ -166,7 +178,7 @@ PHASE_INFO_MAX_LENGTH = 200
 
 # 分级拦截阈值
 GRADUATED_WARN_THRESHOLD = 1  # 首次警告
-GRADUATED_BLOCK_THRESHOLD = 2  # 二次 BLOCK
+GRADUATED_BLOCK_THRESHOLD = 3  # 给 AI 更多纠正机会
 
 # ============ 调查类消息豁免（v5.15.0） ============
 # 调查动词：仅需读取信息的操作

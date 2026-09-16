@@ -249,7 +249,7 @@ def pre_llm_call_hook(
                 enforcement_msg += "必须在本轮调用以上技能，不能跳过。\n"
 
         if enforcement_msg:
-            context = (context or "") + enforcement_msg
+            context = enforcement_msg + (context or "")
         
         # 4. 创建技能追踪（L2/L3/L4/W 任务）
         #    force_reset=False：让 enforcer 的累积逻辑处理，不再强制清空
