@@ -25,6 +25,7 @@
 
 - 用关键词匹配 SKILL.md 触发词
 - 或调用 `skill_view()` 查看技能
+- 网络安全类任务：先调 `knowledge_search` 查外部技能库，命中路径后用 `read_file` 按需读 SKILL.md，不预加载
 - 匹配到 → 直接使用，流程结束
 
 ### Step 3：搜索远程技能
