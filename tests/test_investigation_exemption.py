@@ -1,6 +1,6 @@
 """测试调查类消息豁免：含调查动词 + 代码/日志/配置名词的消息降级为 L1。
 
-规则：调查动词（查看/排查/检查）+ 技术名词（代码/日志/配置）→ L1，不触发 L2 强制。
+规则：精确对子（EXEMPT_PATTERNS 11 组，见 constants.py）命中 → L1；未命中 → 按基础等级（一般为 L2）。
 """
 import sys
 from pathlib import Path
@@ -27,14 +27,14 @@ class TestInvestigationExemption:
         assert r["task_level"] == "L1", f"预期L1，实际 {r['task_level']}"
 
     def test_check_logs(self):
-        """排查日志问题 → L1"""
+        """排查日志问题 → L2（精确对子未命中，不豁免）"""
         r = self._call("排查日志问题")
-        assert r["task_level"] == "L1", f"预期L1，实际 {r['task_level']}"
+        assert r["task_level"] == "L2", f"预期L2，实际 {r['task_level']}"
 
     def test_inspect_config(self):
-        """检查配置 → L1"""
+        """检查配置 → L2（精确对子未命中，不豁免）"""
         r = self._call("检查配置")
-        assert r["task_level"] == "L1", f"预期L1，实际 {r['task_level']}"
+        assert r["task_level"] == "L2", f"预期L2，实际 {r['task_level']}"
 
     def test_view_log_file(self):
         """查看日志文件 → L1"""
@@ -42,19 +42,19 @@ class TestInvestigationExemption:
         assert r["task_level"] == "L1", f"预期L1，实际 {r['task_level']}"
 
     def test_troubleshoot_system(self):
-        """排查系统日志 → L1"""
+        """排查系统日志 → L2（精确对子未命中，不豁免）"""
         r = self._call("排查系统日志")
-        assert r["task_level"] == "L1", f"预期L1，实际 {r['task_level']}"
+        assert r["task_level"] == "L2", f"预期L2，实际 {r['task_level']}"
 
     def test_inspect_code_with_english(self):
-        """check code → L1"""
+        """check code → L2（精确对子未命中，不豁免）"""
         r = self._call("check the code")
-        assert r["task_level"] == "L1", f"预期L1，实际 {r['task_level']}"
+        assert r["task_level"] == "L2", f"预期L2，实际 {r['task_level']}"
 
     def test_investigate_log_with_english(self):
-        """check logs → L1"""
+        """check logs → L2（精确对子未命中，不豁免）"""
         r = self._call("check logs")
-        assert r["task_level"] == "L1", f"预期L1，实际 {r['task_level']}"
+        assert r["task_level"] == "L2", f"预期L2，实际 {r['task_level']}"
 
     # === 不应降级的场景（仅动词无技术名词） ===
 
