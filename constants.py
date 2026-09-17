@@ -35,8 +35,8 @@ SOUL_INJECT_SUBAGENT = _plugin_config.get('soul_inject_subagent', False)
 # ============ 配置常量（从 config.yaml 读取） ============
 OLLAMA_URL = _plugin_config.get('ollama_url', "http://localhost:11434/api/generate")
 DEFAULT_MODEL = _plugin_config.get('ollama_model', "qwen2.5:7b")
-TIMEOUT_MS = _plugin_config.get('timeout_ms', 15000)
-MAX_RETRIES = 3
+TIMEOUT_MS = _plugin_config.get('timeout_ms', 8000)
+MAX_RETRIES = 1
 
 # ============ 路径常量 ============
 PLUGIN_DIR = Path(__file__).parent

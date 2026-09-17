@@ -510,7 +510,7 @@ def call_ollama(prompt: str, model: str = DEFAULT_MODEL, timeout: float = None) 
                 "model": model,
                 "prompt": prompt,
                 "stream": False,
-                "options": {"num_ctx": 12288}
+                "options": {"num_ctx": 4096, "num_predict": 150, "temperature": 0, "think": False}
             },
             timeout=timeout
         )
