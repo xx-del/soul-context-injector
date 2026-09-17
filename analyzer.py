@@ -672,7 +672,10 @@ def _is_investigation_message(user_message: str) -> bool:
     与 __init__.py 主路径同语义（正典实现，唯一定义）。
     只有特定的"动词+名词"组合才豁免，分析类不豁免。
     """
-    from .constants import EXEMPT_PATTERNS
+    try:
+        from .constants import EXEMPT_PATTERNS
+    except ImportError:
+        from constants import EXEMPT_PATTERNS
     if not user_message or not user_message.strip():
         return False
     msg_lower = user_message.lower()
