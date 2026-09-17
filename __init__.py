@@ -311,18 +311,25 @@ def pre_tool_call_hook(
     logger.info(f"[SOUL] should_enforce({session_id}) = {enforce}, tool={tool_name}")
 
     if not enforce:
-        from .enforcer import ensure_tracker, get_tracker
+        from .enforcer import ensure_tracker
         tracker_level = None
-        if is_subagent(session_id):
-            from .subagent_detector import get_parent_session_id
-            parent_id = get_parent_session_id(session_id)
-            if parent_id:
-                parent_tracker = get_tracker(parent_id)
-                if parent_tracker:
-                    tracker_level = parent_tracker.get('task_level')
+
+        # 首选：本会话首消息本地同步定级（无网络，不触发hook超时）
+        from .subagent_detector import get_first_user_message
+        first_msg = get_first_user_message(session_id)
+        if first_msg:
+            from .analyzer import local_client, _is_investigation_message
+            decision = local_client.analyze(first_msg)
+            tracker_level = decision.get("task_level")
+            if tracker_level in ("L2", "L3", "L4") and _is_investigation_message(first_msg):
+                tracker_level = "L1"
+
+        # 次选：本会话注入等级记录
         if not tracker_level:
             from .state import get_last_injected_level
             tracker_level = get_last_injected_level(session_id)
+
+        # 兜底：默认 L2
         if not tracker_level or tracker_level not in ('L2', 'L3', 'L4', 'W'):
             tracker_level = 'L2'
         ensure_tracker(session_id, tracker_level)

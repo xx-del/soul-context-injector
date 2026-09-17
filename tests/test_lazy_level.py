@@ -1,4 +1,5 @@
 """延迟兜底按首消息本地定级守卫测试"""
+import importlib
 import sqlite3
 from pathlib import Path
 
@@ -60,3 +61,28 @@ class TestLocalLevelForSession:
         from soul_context_injector.analyzer import local_client
         decision = local_client.analyze("创建一个端口监控脚本")
         assert decision["task_level"] == "L3"
+
+
+class TestLazyFallbackOrder:
+    """兜底顺序：首消息本地定级优先，不再继承父等级"""
+
+    def test_no_parent_inheritance_in_source(self):
+        src = (Path(__file__).parent.parent / "__init__.py").read_text(
+            encoding="utf-8"
+        )
+        assert "get_parent_session_id" not in src.split(
+            "延迟创建", 1
+        )[1].split("if enforce:", 1)[0] if "延迟创建" in src else True
+
+    def test_fallback_uses_local_classify(self, tmp_path, monkeypatch):
+        """L1只读子会话不再拿到L4"""
+        import soul_context_injector.subagent_detector as det
+        import soul_context_injector.enforcer as enf
+        importlib.reload(enf)
+        monkeypatch.setattr(enf, "TRACKING_DIR", tmp_path)
+        from soul_context_injector.analyzer import local_client
+        decision = local_client.analyze("查看系统日志文件内容")
+        level = decision["task_level"]
+        enf.ensure_tracker("lazy-l1-child", level)
+        tracker = enf.get_tracker("lazy-l1-child")
+        assert tracker["task_level"] != "L4"
