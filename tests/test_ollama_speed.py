@@ -51,3 +51,21 @@ class TestTimeoutDefaults:
 
     def test_retry_default_1(self, fresh_constants):
         assert fresh_constants.MAX_RETRIES == 1
+
+
+class TestLocalShortCircuit:
+    """纯确认词与调查豁免在调 Ollama 前直接返回，不耗模型时间"""
+
+    def test_pure_confirm_skips_ollama(self):
+        import soul_context_injector.analyzer as mod
+        with patch.object(mod, "call_ollama_with_retry") as mock_llm:
+            result = mod.analyze_task("同意")
+            mock_llm.assert_not_called()
+            assert result["task_level"] == "L4"
+
+    def test_investigation_skips_ollama(self):
+        import soul_context_injector.analyzer as mod
+        with patch.object(mod, "call_ollama_with_retry") as mock_llm:
+            result = mod.analyze_task("查看系统日志文件内容")
+            mock_llm.assert_not_called()
+            assert result["task_level"] == "L1"

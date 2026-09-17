@@ -604,7 +604,17 @@ def analyze_task(user_message: str) -> Dict[str, Any]:
     skill_result = detect_skill_intent(user_message)
     if skill_result:
         return skill_result
-    
+
+    # 2.5 本地短路：纯确认词与调查类消息不调 Ollama
+    if _is_pure_confirm(user_message):
+        return {"success": True, "task_level": "L4", "workflow_name": None,
+                "write_operation": False, "code_guidance": False,
+                "agent_pool": False, "skill_usage": True, "self_improving": False}
+    if _is_investigation_message(user_message):
+        return {"success": True, "task_level": "L1", "workflow_name": None,
+                "write_operation": False, "code_guidance": False,
+                "agent_pool": False, "skill_usage": True, "self_improving": False}
+
     # 3. Ollama 分析
     decision = None
     try:
@@ -631,6 +641,29 @@ def analyze_task(user_message: str) -> Dict[str, Any]:
         decision["task_level"] = "L1"
     
     return decision
+
+
+def _is_pure_confirm(user_message: str) -> bool:
+    """纯确认词判定（短消息+确认词开头，且非同意后执行模式）"""
+    if not user_message or not user_message.strip():
+        return False
+    lower = user_message.lower()
+    stripped = lower.strip()
+    confirm_then_exec_patterns = [
+        "同意后执行", "同意后实施", "同意后部署",
+        "确认后执行", "确认后实施", "确认后部署",
+        "批准后执行", "批准后实施",
+        "我同意后执行", "我确认后执行",
+    ]
+    if any(p in lower for p in confirm_then_exec_patterns):
+        return False
+    pure_words = ["是", "同意", "确认", "执行", "好的", "可以",
+                  "ok", "yes", "需要", "没问题", "开始吧", "执行吧"]
+    if any(stripped == kw or stripped.rstrip("。，！？!?.") == kw for kw in pure_words):
+        return True
+    if len(stripped) <= 20 and any(stripped.startswith(kw) for kw in CONFIRM_KEYWORDS):
+        return True
+    return False
 
 
 def _is_investigation_message(user_message: str) -> bool:
