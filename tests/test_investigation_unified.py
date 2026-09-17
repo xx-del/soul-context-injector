@@ -8,7 +8,20 @@
 会重放模块顶层逻辑且顶层模块与合成包是两个模块对象，
 行为不可靠。改为直接断言正典唯一性 + 正典语义。
 """
-from soul_context_injector.analyzer import _is_investigation_message
+import sys
+import types
+import importlib.util
+from pathlib import Path
+
+PLUGIN_DIR = Path(__file__).resolve().parent.parent
+
+_PKG_NAME = "soul_context_injector"
+if _PKG_NAME not in sys.modules:
+    _pkg = types.ModuleType(_PKG_NAME)
+    _pkg.__path__ = [str(PLUGIN_DIR)]
+    sys.modules[_PKG_NAME] = _pkg
+
+from soul_context_injector.analyzer import _is_investigation_message  # noqa: E402
 
 
 class TestUnifiedExemption:
