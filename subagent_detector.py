@@ -108,3 +108,34 @@ def get_parent_session_id(session_id: str):
         if conn:
             conn.close()
     return None
+
+
+def get_first_user_message(session_id: str) -> Optional[str]:
+    """取本会话首条用户消息内容（延迟定级用，只读）
+
+    Returns:
+        首条 user 消息正文；无消息或查询失败返回 None
+    """
+    if not session_id or not _STATE_DB_PATH.exists():
+        return None
+
+    conn = None
+    try:
+        conn = sqlite3.connect(str(_STATE_DB_PATH), timeout=5.0)
+        conn.execute("PRAGMA journal_mode=WAL")
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT content FROM messages WHERE session_id = ? AND role = 'user' "
+            "ORDER BY id LIMIT 1",
+            (session_id,),
+        )
+        row = cursor.fetchone()
+        if row and row[0] and str(row[0]).strip():
+            return str(row[0])
+    except Exception as e:
+        logger.debug(f"[SOUL] 查询首消息失败: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+    return None
