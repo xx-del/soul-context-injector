@@ -667,18 +667,14 @@ def _is_pure_confirm(user_message: str) -> bool:
 
 
 def _is_investigation_message(user_message: str) -> bool:
-    """检测消息是否为调查类消息：含调查动词 + 代码/日志/配置名词。
+    """检测消息是否为调查类消息：精确匹配纯读取模式。
 
-    调查类消息仅需读取信息，不触发 L2 强制（deep-thinking 技能要求）。
-    必须同时包含调查动词和技术名词才生效，避免"查看进度"等非技术查询误触发。
+    与 __init__.py 主路径同语义（正典实现，唯一定义）。
+    只有特定的"动词+名词"组合才豁免，分析类不豁免。
     """
+    from .constants import EXEMPT_PATTERNS
     if not user_message or not user_message.strip():
         return False
-    try:
-        from .constants import INVESTIGATION_VERBS, INVESTIGATION_NOUNS
-    except ImportError:
-        from constants import INVESTIGATION_VERBS, INVESTIGATION_NOUNS
     msg_lower = user_message.lower()
-    has_verb = any(kw in msg_lower for kw in INVESTIGATION_VERBS)
-    has_noun = any(kw in msg_lower for kw in INVESTIGATION_NOUNS)
-    return has_verb and has_noun
+    return any(verb in msg_lower and noun in msg_lower
+               for verb, noun in EXEMPT_PATTERNS)

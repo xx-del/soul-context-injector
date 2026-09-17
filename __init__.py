@@ -114,26 +114,7 @@ def _throttled_cleanup():
 
 
 # ============ 调查类消息豁免（v5.15.0 精确匹配） ============
-
-# 精确匹配纯读取模式，排除分析类（排查错误、诊断故障等）
-_EXEMPT_PATTERNS = [
-    ("查看", "日志"), ("查看", "配置"), ("查看", "内容"),
-    ("搜索", "文件"), ("列出", "目录"), ("浏览", "文件"),
-    ("检查", "状态"), ("检查", "进程"), ("检查", "端口"),
-    ("排查", "状态"), ("诊断", "状态"),
-]
-
-
-def _is_investigation_message(user_message: str) -> bool:
-    """检测消息是否为调查类消息：精确匹配纯读取模式。
-
-    只有特定的"动词+名词"组合才豁免，分析/诊断/排查错误类不豁免。
-    """
-    if not user_message or not user_message.strip():
-        return False
-    msg_lower = user_message.lower()
-    return any(verb in msg_lower and noun in msg_lower
-               for verb, noun in _EXEMPT_PATTERNS)
+# 正典实现见 analyzer._is_investigation_message，调用处函数级导入（避免循环导入）。
 
 
 # ============ 分析类任务检测（v5.14.0） ============
@@ -197,6 +178,7 @@ def pre_llm_call_hook(
             logger.info(f"[SOUL] 分析类任务降级为 L2: {user_message[:50]}...")
 
         # 【v5.15.0 新增】调查类消息豁免：调查动词 + 技术名词 → L1，不触发 L2 强制
+        from .analyzer import _is_investigation_message
         if task_level in ("L2", "L3", "L4") and _is_investigation_message(user_message):
             logger.info(f"[SOUL] 调查类消息豁免，降级为 L1: {user_message[:50]}...")
             task_level = "L1"

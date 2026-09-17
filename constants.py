@@ -193,3 +193,11 @@ INVESTIGATION_NOUNS = frozenset({
     "code", "log", "config", "configuration", "file", "system",
     "service", "process", "port", "network", "server", "database",
 })
+
+# 精确豁免对子（v5.15.0）：只有这些"动词+名词"组合才豁免
+EXEMPT_PATTERNS = [
+    ("查看", "日志"), ("查看", "配置"), ("查看", "内容"),
+    ("搜索", "文件"), ("列出", "目录"), ("浏览", "文件"),
+    ("检查", "状态"), ("检查", "进程"), ("检查", "端口"),
+    ("排查", "状态"), ("诊断", "状态"),
+]

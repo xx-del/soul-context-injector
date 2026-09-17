@@ -91,7 +91,7 @@ class TestInvestigationExemptionIsInvestigationMessage:
     """直接测试 _is_investigation_message 辅助函数"""
 
     def test_has_both_verb_and_noun(self):
-        from __init__ import _is_investigation_message
+        from soul_context_injector.analyzer import _is_investigation_message
         # 精确匹配模式：必须是预定义的 verb+noun 组合
         assert _is_investigation_message("查看日志内容") is True
         assert _is_investigation_message("检查进程状态") is True
@@ -101,17 +101,17 @@ class TestInvestigationExemptionIsInvestigationMessage:
         assert _is_investigation_message("检查配置文件") is False
 
     def test_only_verb(self):
-        from __init__ import _is_investigation_message
+        from soul_context_injector.analyzer import _is_investigation_message
         assert _is_investigation_message("查看") is False
         assert _is_investigation_message("查看进度") is False
         assert _is_investigation_message("排查一下") is False
 
     def test_only_noun(self):
-        from __init__ import _is_investigation_message
+        from soul_context_injector.analyzer import _is_investigation_message
         assert _is_investigation_message("代码") is False
         assert _is_investigation_message("日志") is False
 
     def test_empty_string(self):
-        from __init__ import _is_investigation_message
+        from soul_context_injector.analyzer import _is_investigation_message
         assert _is_investigation_message("") is False
         assert _is_investigation_message("   ") is False

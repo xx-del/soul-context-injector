@@ -13,7 +13,7 @@ class TestInvestigationExemption:
 
     def test_exempt_patterns_only_read_only(self):
         """只有纯读取操作豁免，分析类不豁免。"""
-        from __init__ import _is_investigation_message
+        from soul_context_injector.analyzer import _is_investigation_message
 
         # 应豁免（纯读取）
         assert _is_investigation_message("查看日志内容") == True
