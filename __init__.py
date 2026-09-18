@@ -208,6 +208,11 @@ def pre_llm_call_hook(
         if task_level == "L4" and not workflow_name:
             logger.info(f"[SOUL] L4 任务，等待大模型判断方案")
         
+        # 【技能直调】L0 且带技能名：彻底跳过注入（拦截层不受影响）
+        from .analyzer import should_skip_for_skill
+        if should_skip_for_skill(decision):
+            logger.info(f"[SOUL] 技能直调跳过注入: {decision.get('skill_name')}")
+            return None
         # 3. 构建注入上下文
         context = build_context(task_level, decision, user_message, session_id)
 
