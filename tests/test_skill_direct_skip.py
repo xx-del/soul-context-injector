@@ -67,3 +67,16 @@ class TestAllScanExtraDirs:
         monkeypatch.setattr(azc, "SKILL_WHITELIST_MODE", "all")
         r = az.detect_skill_intent("/extra-skill")
         assert r is not None and r["task_level"] == "L0"
+
+
+class TestSlashBeatsWorkflow:
+    def test_slash_with_workflow_word_is_skill_not_w(self, tmp_path, monkeypatch):
+        import soul_context_injector.analyzer as az
+        import soul_context_injector.constants as azc
+        (tmp_path / "wf-skill").mkdir()
+        (tmp_path / "wf-skill" / "SKILL.md").write_text("# wf")
+        monkeypatch.setattr(az, "SKILLS_DIR", tmp_path)
+        monkeypatch.setattr(azc, "SKILL_WHITELIST_MODE", "all")
+        r = az.analyze_task("/wf-skill工作流执行一下")
+        assert r["task_level"] == "L0"
+        assert r.get("skill_name") == "wf-skill"

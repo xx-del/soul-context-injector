@@ -628,6 +628,12 @@ def analyze_task(user_message: str) -> Dict[str, Any]:
     4. 本地规则降级
     5. 调查类消息豁免（动词+名词 → L1）
     """
+    # 0. slash 显式调技能：优先于工作流检测
+    _msg = (user_message or "").strip()
+    if _msg.startswith("/"):
+        skill_result = detect_skill_intent(user_message)
+        if skill_result:
+            return skill_result
     # 1. 工作流本地检测（最高优先级）
     workflow_result = detect_workflow_local(user_message)
     if workflow_result:
