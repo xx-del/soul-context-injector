@@ -681,3 +681,10 @@ def _is_investigation_message(user_message: str) -> bool:
     msg_lower = user_message.lower()
     return any(verb in msg_lower and noun in msg_lower
                for verb, noun in EXEMPT_PATTERNS)
+
+
+def should_skip_for_skill(decision: dict) -> bool:
+    """技能直调是否跳过注入：L0 且带 skill_name 才跳。"""
+    if not isinstance(decision, dict):
+        return False
+    return decision.get("task_level") == "L0" and bool(decision.get("skill_name"))
