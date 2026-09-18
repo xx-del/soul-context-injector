@@ -45,3 +45,25 @@ class TestSkillDirectSkip:
 
     def test_l2_never_skips(self):
         assert should_skip_for_skill({"task_level": "L2"}) is False
+
+
+class TestAllScanExtraDirs:
+    def test_scan_skill_dir_lists_names(self, tmp_path):
+        from soul_context_injector.analyzer import _scan_skill_dir
+        (tmp_path / "demo-skill" / "SKILL.md").parent.mkdir(parents=True)
+        (tmp_path / "demo-skill" / "SKILL.md").write_text("# demo")
+        (tmp_path / "cat" / "sub-skill").mkdir(parents=True)
+        (tmp_path / "cat" / "sub-skill" / "SKILL.md").write_text("# sub")
+        names = _scan_skill_dir(tmp_path)
+        assert "demo-skill" in names
+        assert "sub-skill" in names
+
+    def test_slash_extra_skill_hits_l0(self, tmp_path, monkeypatch):
+        import soul_context_injector.analyzer as az
+        import soul_context_injector.constants as azc
+        (tmp_path / "extra-skill").mkdir()
+        (tmp_path / "extra-skill" / "SKILL.md").write_text("# extra")
+        monkeypatch.setattr(az, "SKILLS_DIR", tmp_path)
+        monkeypatch.setattr(azc, "SKILL_WHITELIST_MODE", "all")
+        r = az.detect_skill_intent("/extra-skill")
+        assert r is not None and r["task_level"] == "L0"

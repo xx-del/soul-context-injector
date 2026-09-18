@@ -180,6 +180,46 @@ def get_workflow_names() -> list:
 DEFAULT_SKILL_WHITELIST = ["workflow-manager", "agent-pool", "planning-with-files"]
 
 
+def _scan_skill_dir(base) -> list:
+    """扫描单个技能根目录（两层），返回技能名列表。"""
+    from pathlib import Path
+    base = Path(base)
+    names = []
+    if not base.exists():
+        return names
+    for item in base.iterdir():
+        if item.is_dir():
+            if (item / "SKILL.md").exists():
+                names.append(item.name)
+            else:
+                for sub in item.iterdir():
+                    if (sub / "SKILL.md").exists():
+                        names.append(sub.name)
+    return names
+
+
+def _get_extra_skill_dirs() -> tuple:
+    """读 config.yaml 的 local_knowledge.custom_skill_dirs，缺键返回 []。
+
+    lru_cache：analyze_task 每轮调用，避免每轮读盘 parse。
+    """
+    return _read_extra_skill_dirs()
+
+
+@lru_cache(maxsize=1)
+def _read_extra_skill_dirs() -> tuple:
+    try:
+        import yaml
+        cfg = HERMES_HOME / "config.yaml"
+        if not cfg.exists():
+            return ()
+        data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
+        dirs = (data.get("local_knowledge") or {}).get("custom_skill_dirs") or []
+        return tuple(d for d in dirs if isinstance(d, str))
+    except Exception:
+        return ()
+
+
 def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
     """技能意图检测（显式指令匹配）
 
@@ -206,20 +246,11 @@ def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
     skills_to_check = SKILL_WHITELIST  # list 模式用配置列表
 
     if SKILL_WHITELIST_MODE == 'all':
-        # all 模式：扫描所有已安装技能
+        # all 模式：主目录 + 外部目录
         from pathlib import Path
-        if SKILLS_DIR.exists():
-            skills_to_check = []
-            for item in SKILLS_DIR.iterdir():
-                if item.is_dir():
-                    # 直接技能目录: ~/.hermes/skills/<skill_name>/SKILL.md
-                    if (item / "SKILL.md").exists():
-                        skills_to_check.append(item.name)
-                    else:
-                        # 分类目录: ~/.hermes/skills/<category>/<skill_name>/SKILL.md
-                        for sub in item.iterdir():
-                            if (sub / "SKILL.md").exists():
-                                skills_to_check.append(sub.name)
+        skills_to_check = _scan_skill_dir(SKILLS_DIR)
+        for extra in _get_extra_skill_dirs():
+            skills_to_check += _scan_skill_dir(extra)
 
     # 排除语境：技能名前有分析/审查动词，或技能名后跟原理/问题/区别
     exclude_verbs = ["分析", "检查", "审计", "评估", "对比", "解释", "审阅", "排查",
@@ -235,6 +266,8 @@ def detect_skill_intent(user_message: str) -> Optional[Dict[str, Any]]:
     # 0. slash 命令快速路径：/技能名（显式调用，不受排除语境影响）
     if msg_lower.startswith("/"):
         slash_rest = msg_lower[1:].strip()
+        if "/" in slash_rest:
+            slash_rest = slash_rest.split("/")[-1]
         for skill_name in skills_to_check:
             skill_lower = skill_name.lower()
             token_pattern = rf'(?<![a-z0-9_\-]){re.escape(skill_lower)}(?![a-z0-9_\-])'
